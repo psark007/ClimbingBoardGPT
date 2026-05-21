@@ -1,0 +1,25 @@
+{
+  "board_key": "kilter",
+  "display_name": "Kilter Board Original",
+  "token_prefix": "KILTER",
+  "db_path": "data/raw/kilter.db",
+  "layout_id": 1,
+  "max_angle": 55,
+  "min_fa_date": "2016-01-01",
+  "placement_y_max": 156,
+  "include_mirror_placement_id": false,
+  "role_definitions": {
+    "start": 12,
+    "middle": 13,
+    "finish": 14,
+    "foot": 15
+  },
+  "boardlib_database_command": "boardlib database kilter data/raw/kilter.db",
+  "boardlib_images_command": "boardlib images kilter data/raw/kilter.db images",
+  "notes": [
+    "Matches the Kilter Original layout used in the earlier Kilter analysis.",
+    "The modeling cutoff uses wall angles <= 55 degrees.",
+    "The first-ascent date filter keeps rows after 2016-01-01.",
+    "Placement metadata is restricted to y <= 156, following the earlier notebook pipeline."
+  ]
+}

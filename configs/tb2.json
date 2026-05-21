@@ -1,0 +1,23 @@
+{
+  "board_key": "tb2",
+  "display_name": "Tension Board 2 Mirror",
+  "token_prefix": "TB2",
+  "db_path": "data/raw/tb2.db",
+  "layout_id": 10,
+  "max_angle": 50,
+  "min_fa_date": null,
+  "placement_y_max": null,
+  "include_mirror_placement_id": true,
+  "role_definitions": {
+    "start": 5,
+    "middle": 6,
+    "finish": 7,
+    "foot": 8
+  },
+  "boardlib_database_command": "boardlib database tension data/raw/tb2.db",
+  "boardlib_images_command": "boardlib images tension data/raw/tb2.db images",
+  "notes": [
+    "Matches the TB2 mirrored layout used in the earlier TB2 analysis.",
+    "The modeling cutoff uses wall angles <= 50 degrees."
+  ]
+}
