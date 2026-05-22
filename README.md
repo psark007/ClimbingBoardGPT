@@ -1,25 +1,25 @@
 # ClimbingBoardGPT
 
-**Applying LLM-style transformer techniques to climbing board route generation and grade prediction.**
+**ClimbingBoardGPT** is a unified transformer-style modeling project for climbing-board routes on:
 
-This project treats climbing routes as language and trains transformer models on data from the **Tension Board 2 Mirror** and **Kilter Board Original** — learning to predict grades and generate entirely new routes.
+- **Tension Board 2 Mirror**
+- **Kilter Board Original**
+
+The project treats climbing-board problems as symbolic sequences of board-aware hold-role tokens. It supports:
+
+1. joint route tokenization for TB2 and Kilter,
+2. transformer-based grade prediction,
+3. GPT-style route generation conditioned on board, wall angle, and target grade,
+4. calibrated board-background visualization,
+5. command-line demo scripts for generation and grade prediction.
+
+This repo is the transformer/GPT follow-up project to [Tension-Board-2-Analysis] and [Kilter-Board-Analysis]. 
 
 ---
 
-## The Core Idea
+## Core idea
 
-Large language models process text as sequences of tokens and learn statistical patterns from billions of examples. Climbing routes have the same structure:
-
-| NLP Concept | Climbing Analog |
-|---|---|
-| Word / Subword | Hold token (`TB2_p344_start`) |
-| Sentence | Route (sequence of holds) |
-| Document language | Board type (TB2 vs Kilter) |
-| POS tag | Semantic role (start / middle / finish / foot) |
-| Genre / Domain | Angle + Grade conditioning |
-| Special tokens | `<BOS>`, `<EOS>`, `<PAD>`, `<CLS>`, `<MASK>`, `<UNK>` |
-
-A route becomes a symbolic sequence:
+A route is represented as a sequence like:
 
 ```text
 <BOS> <BOARD_TB2> <ANGLE_40> <GRADE_V6>
@@ -27,295 +27,576 @@ A route becomes a symbolic sequence:
 <EOS>
 ```
 
-The same transformer architectures that power GPT and BERT can learn "climb grammar" — which holds tend to follow which, how start holds differ from finish holds, and how difficulty emerges from spatial relationships.
+or:
+
+```text
+<BOS> <BOARD_KILTER> <ANGLE_40> <GRADE_V6>
+<KILTER_p1084_start> <KILTER_p1231_middle> <KILTER_p1395_finish>
+<EOS>
+```
+
+Hold tokens are **board-namespaced**, so a TB2 placement ID and a Kilter placement ID never collide.
+
+For grade prediction, the grade token is removed:
+
+```text
+<CLS> <BOARD_TB2> <ANGLE_40>
+<TB2_p344_start> <TB2_p369_middle> <TB2_p603_finish>
+<EOS>
+```
+
+The model then predicts the climb difficulty from the board, angle, and hold-role tokens.
+
 
 ---
 
-## What This Repo Does
+## Quantitative results from the executed notebooks
 
-### 1. Tokenization (`01_tokenize_routes`)
+These numbers come from the executed four-notebook run included with the project. They should be treated as the current benchmark for this checkpoint/data snapshot; rerun the pipeline if the raw databases, tokenization, model sizes, or train/validation/test split change.
 
-Converts raw SQLite data into tokenized sequences:
+### Dataset and tokenization scale
 
-- Parses `frames` strings (e.g., `p344r5p369r6p603r7`) into structured hold records
-- Maps board-specific role IDs to shared semantic roles (TB2: 5/6/7/8 → Kilter: 12/13/14/15 → `start`/`middle`/`finish`/`foot`)
-- Sorts holds canonically by (role priority, y-position, x-position)
-- Generates two sequence versions:
-  - **With grade** — for GPT generation training
-  - **Without grade** — for BERT-style grade prediction
-- Builds a shared vocabulary (~4,400 tokens), stratified train/val/test splits, and coordinate metadata
+The unified tokenizer builds one shared corpus across TB2 and Kilter.
 
-### 2. Grade Prediction (`02_train_grade_predictor`)
+| Quantity | Value |
+|---|---:|
+| Total route/angle entries | 321,085 |
+| TB2 entries | 42,596 |
+| Kilter entries | 278,489 |
+| Placement metadata rows | 1,139 |
+| Shared vocabulary size | 4,438 tokens |
+| Special tokens | 6 |
+| Board tokens | 2 |
+| Angle tokens | 12 |
+| Grade tokens | 16 |
+| Hold-role tokens | 4,402 |
+| Grade-predictor max sequence length | 398 |
+| GPT-generator max sequence length | 399 |
 
-Trains a **transformer encoder** (BERT-style) to predict climb difficulty:
+The train/validation/test split used in the executed notebooks was:
 
-- Input: `<CLS> <BOARD_TB2> <ANGLE_40> <TB2_p344_start> ...` (grade excluded)
-- Output: Single difficulty score (regression)
-- Coordinate features (x, y, is_hold) are projected and added to token embeddings
-- Joint training across both boards with board-conditioning tokens
+| Board | Train | Validation | Test |
+|---|---:|---:|---:|
+| TB2 | 33,719 | 4,430 | 4,447 |
+| Kilter | 223,112 | 27,555 | 27,822 |
+| **Total** | **256,831** | **31,985** | **32,269** |
 
-**Results (joint model, test set):**
+### Grade prediction performance
+
+The grade predictor is a transformer encoder trained jointly on both boards. It receives board, angle, hold-role tokens, and coordinate features, but **does not receive the grade token**.
 
 | Metric | Overall | TB2 | Kilter |
-|---|---|---|---|
-| MAE | 1.47 | 1.42 | 1.48 |
-| R² | 0.787 | 0.816 | 0.782 |
-| Within ±1 V-grade | 80.1% | 81.3% | 80.0% |
-| Within ±2 V-grades | 95.3% | 96.1% | 95.2% |
+|---|---:|---:|---:|
+| MAE | 1.481 | 1.420 | 1.490 |
+| RMSE | 1.941 | 1.845 | 1.956 |
+| R² | 0.768 | 0.800 | 0.763 |
+| Exact grouped V-grade | 36.0% | 37.3% | 35.8% |
+| Within ±1 V-grade | 79.3% | 80.0% | 79.2% |
+| Within ±2 V-grades | 94.8% | 95.5% | 94.7% |
 
-### 3. Route Generation (`03_train_route_generator`)
+The model has about **1.17M parameters**. In the executed run, early stopping selected epoch 8 with validation MAE ≈ **1.480**.
 
-Trains a **GPT-style causal transformer** to generate new routes:
+### Route generator training
 
-- Input prompt: `<BOS> <BOARD_TB2> <ANGLE_40> <GRADE_V6>`
-- Output: Sequence of hold tokens ending with `<EOS>`
-- Uses causal masking (each position attends only to previous positions)
-- Generation uses temperature sampling and top-k filtering
+The route generator is a GPT-style causal transformer trained on grade-conditioned route sequences.
 
-**Training results:**
-- Best validation perplexity: ~24.6
-- 88.8% basic validity rate for generated routes
+| Quantity | Value |
+|---|---:|
+| Model size | ~1.41M parameters |
+| Best validation loss | 3.187 |
+| Best validation perplexity | 24.2 |
+| Evaluation sample size | 400 generated routes |
+| Overall basic validity | 91.5% |
+| Overall strict validity | 91.5% |
 
-### 4. Evaluation (`04_evaluate_generated_routes`)
+During the generator evaluation run, routes were sampled across both boards, common angles, and target grades V1–V8.
 
-Evaluates generated routes on four dimensions:
+### Generated-route evaluation
 
-- **Validity**: Structural correctness (start/finish holds, no duplicates, single board)
-- **Novelty**: Jaccard distance from nearest real route
-- **Geometric plausibility**: Height, width, reach distances
-- **Grade consistency**: Uses the trained grade predictor as a critic
-
-**Evaluation results:**
+Generated routes are evaluated by structural validity, novelty against real climbs, geometric features, and grade consistency using the trained grade predictor as a critic.
 
 | Metric | TB2 | Kilter |
-|---|---|---|
-| Basic validity | 87.0% | 90.5% |
-| Mean novelty distance | 0.661 | 0.642 |
-| Exact V-grade match | 27.5% | 33.5% |
-| Within ±1 V-grade | 66.0% | 67.5% |
-| Within ±2 V-grades | 91.0% | 90.0% |
+|---|---:|---:|
+| Generated routes evaluated | 200 | 200 |
+| Basic validity | 89.0% | 94.0% |
+| Strict validity | 89.0% | 94.0% |
+| Mean novelty distance | 0.656 | 0.634 |
+| Median novelty distance | 0.667 | 0.652 |
+| Mean generated hold count | 11.11 | 12.90 |
+| Mean route height | 130.76 | 142.32 |
+| Mean route width | 61.66 | 74.94 |
+| Mean hand-reach distance | 50.41 | 57.53 |
+
+Grade consistency of generated climbs, measured by the trained grade predictor:
+
+| Metric | Overall | TB2 | Kilter |
+|---|---:|---:|---:|
+| Exact requested V-grade | 28.2% | 29.5% | 27.0% |
+| Within ±1 V-grade | 70.8% | 68.5% | 73.0% |
+| Within ±2 V-grades | 92.0% | 90.5% | 93.5% |
+| Mean V-grade error | -- | -0.18 | -0.30 |
+
+Interpretation: the generator is usually structurally valid and usually close to the requested grade according to the critic, but exact grade control remains imperfect. That is expected: this is a small GPT-style model trained on symbolic route data, not a production setter.
 
 ---
 
-## Key Design Decisions
-
-### Board Namespacing
-
-Hold tokens include the board prefix (`TB2_p344_start` vs `KILTER_p1084_start`). Placement 344 on TB2 is a completely different physical hold than placement 344 on Kilter — the prefix prevents ID collisions.
-
-### Semantic Role Mapping
-
-Different boards use different numeric role IDs, but they all map to the same semantic roles:
-
-| Role | TB2 | Kilter |
-|---|---|---|
-| Start | 5 | 12 |
-| Middle | 6 | 13 |
-| Finish | 7 | 14 |
-| Foot | 8 | 15 |
-
-This shared vocabulary lets the model learn transferable patterns across boards.
-
-### Coordinate Features
-
-Each hold token carries physical (x, y) position information that gets projected and added to token embeddings. This gives the model direct spatial knowledge — similar to how some vision-language models inject spatial features.
-
-### Conditioning Tokens
-
-Routes are prefixed with board, angle, and grade tokens. This is analogous to how modern LLMs use system prompts to condition generation.
-
----
-
-## Repository Structure
+## Repository layout
 
 ```text
 ClimbingBoardGPT/
 ├── configs/
-│   ├── tb2.json                    # Tension Board 2 configuration
-│   └── kilter.json                 # Kilter Board configuration
+│   ├── tb2.json
+│   └── kilter.json
 ├── data/
-│   ├── raw/                        # SQLite databases (not in repo)
+│   ├── raw/
+│   │   ├── tb2.db
+│   │   └── kilter.db
 │   └── processed/
-│       ├── tokenized/               # Tokenized route data
-│       ├── grade_prediction/        # Grade predictor outputs
-│       ├── generation/              # Generated route data
-│       └── evaluation/              # Evaluation results
-├── models/                          # Saved model checkpoints
+├── images/
+│   ├── tb2_board_12x12_composite.png
+│   └── kilter-original-16x12_compose.png
+├── models/
+│   ├── joint_transformer_grade_predictor.pth
+│   └── joint_route_gpt_generator.pth
 ├── notebooks/
-│   ├── 01_unified_route_tokenization.ipynb
-│   ├── 02_joint_transformer_grade_prediction.ipynb
-│   ├── 03_joint_nanogpt_route_generator.ipynb
-│   └── 04_generated_route_evaluation.ipynb
 ├── scripts/
 │   ├── 01_tokenize_routes.py
 │   ├── 02_train_grade_predictor.py
 │   ├── 03_train_route_generator.py
-│   └── 04_evaluate_generated_routes.py
+│   ├── 04_evaluate_generated_routes.py
+│   ├── demo_generate_and_visualize.py
+│   ├── demo_generate_tb2.py
+│   ├── demo_generate_kilter.py
+│   ├── demo_predict_grade.py
+│   ├── demo_predict_tb2.py
+│   └── demo_predict_kilter.py
 ├── src/climbingboardgpt/
-│   ├── __init__.py
-│   ├── config.py                   # Board configuration loading
-│   ├── data.py                     # SQLite data loading
-│   ├── datasets.py                 # PyTorch Dataset classes
-│   ├── evaluation.py               # Route evaluation functions
-│   ├── generation.py               # Route generation logic
-│   ├── grades.py                   # Grade-to-V mapping
-│   ├── metrics.py                  # Evaluation metrics
-│   ├── models.py                   # Transformer architectures
-│   ├── paths.py                    # Project root detection
-│   ├── tokenization.py             # Core tokenization logic
-│   └── utils.py                    # Utility functions
+├── README.md
 ├── requirements.txt
-├── pyproject.toml
-└── README.md
+└── pyproject.toml
 ```
 
 ---
 
 ## Setup
 
+Create and activate a virtual environment:
+
 ```bash
-# Clone the repo
-git clone https://github.com/yourusername/ClimbingBoardGPT.git
-cd ClimbingBoardGPT
-
-# Create and activate virtual environment
 python -m venv .venv
-source .venv/bin/activate  # Linux/Mac
-# .venv\Scripts\activate     # Windows
+source .venv/bin/activate
+```
 
-# Install dependencies
+Install the package:
+
+```bash
 pip install -r requirements.txt
 pip install -e .
 ```
 
-### Retrieving Raw Databases
-
-The project expects SQLite databases at `data/raw/tb2.db` and `data/raw/kilter.db`.
-
-Using [BoardLib](https://github.com/lemeryf/BoardLib):
+For CPU-only demo use on a small VPS, the scripts support:
 
 ```bash
-pip install boardlib
-boardlib database tension data/raw/tb2.db
-boardlib database kilter data/raw/kilter.db
+--torch-threads 1
 ```
+
+This caps PyTorch CPU thread usage.
 
 ---
 
-## Running the Pipeline
+## Data expected by the full training pipeline
 
-### 1. Tokenize both boards
+The full tokenization/training pipeline expects raw BoardLib databases at:
+
+```text
+data/raw/tb2.db
+data/raw/kilter.db
+```
+
+The project configs are:
+
+```text
+configs/tb2.json
+configs/kilter.json
+```
+
+They define board-specific details such as:
+
+- database path,
+- layout ID,
+- role IDs,
+- token prefix,
+- angle cutoff,
+- optional date / placement filters.
+
+The demo scripts do **not** need the raw databases if the processed tokenization artifacts and trained model checkpoints already exist.
+
+---
+
+## Full training pipeline
+
+From the repository root:
 
 ```bash
 python scripts/01_tokenize_routes.py --boards tb2,kilter
-```
-
-Creates `data/processed/tokenized/` with vocabulary, route sequences, and metadata.
-
-### 2. Train the grade predictor
-
-```bash
 python scripts/02_train_grade_predictor.py
-```
-
-Trains a BERT-style transformer encoder and saves to `models/joint_transformer_grade_predictor.pth`.
-
-### 3. Train the route generator
-
-```bash
 python scripts/03_train_route_generator.py
-```
-
-Trains a GPT-style causal transformer and saves to `models/joint_route_gpt_generator.pth`.
-
-### 4. Evaluate generated routes
-
-```bash
 python scripts/04_evaluate_generated_routes.py
 ```
 
-Evaluates validity, novelty, geometry, and grade consistency. Saves results to `data/processed/evaluation/`.
+This produces the main processed artifacts and trained checkpoints.
 
----
+### Tokenization outputs
 
-## Model Architectures
-
-### JointRouteTransformerRegressor (Grade Prediction)
-
-```
-Input: [CLS] BOARD ANGLE HOLDS...
-         ↓
-Token Embedding + Position Embedding + Coordinate Features
-         ↓
-Transformer Encoder (4 layers, 4 heads, d_model=128)
-         ↓
-[CLS] token output → Regression Head → difficulty score
+```text
+data/processed/tokenized/
+├── route_sequences.csv
+├── routes_tokenized.jsonl
+├── token_vocab.json
+├── token_metadata.csv
+├── placement_metadata.csv
+└── board_summary.csv
 ```
 
-- ~1.17M parameters
-- MSE loss, AdamW optimizer
-- Early stopping on validation MAE
+### Grade-prediction outputs
 
-### JointRouteGPT (Route Generation)
+```text
+data/processed/grade_prediction/
+├── training_history.csv
+├── test_predictions.csv
+├── board_metrics.csv
+└── overall_metrics.json
 
-```
-Input: BOS BOARD ANGLE GRADE HOLDS...
-         ↓
-Token Embedding + Position Embedding
-         ↓
-Causal Transformer (4 layers, 4 heads, d_embd=128)
-         ↓
-Language Modeling Head → next token logits
+models/
+└── joint_transformer_grade_predictor.pth
 ```
 
-- ~1.41M parameters
-- Cross-entropy loss, AdamW optimizer
-- Weight tying between embedding and output layers
+### Route-generation outputs
+
+```text
+data/processed/generation/
+├── training_history.csv
+└── generated_routes.csv
+
+models/
+└── joint_route_gpt_generator.pth
+```
+
+### Generated-route evaluation outputs
+
+```text
+data/processed/evaluation/
+├── generated_route_evaluation.csv
+└── top_generated_candidates.csv
+```
 
 ---
 
-## Board Configuration
+## Generate routes and visualize them
 
-| Setting | TB2 Mirror | Kilter Original |
-|---|---:|---|
-| `layout_id` | 10 | 1 |
-| `token_prefix` | TB2 | KILTER |
-| `max_angle` | 50 | 55 |
-| `role_definitions` | start=5, middle=6, finish=7, foot=8 | start=12, middle=13, finish=14, foot=15 |
-| `include_mirror_placement_id` | true | false |
-| `min_fa_date` | null | 2016-01-01 |
+After training the route generator, or after placing a trained checkpoint at:
 
-To add a new board, create a JSON config in `configs/` following the same format.
+```text
+models/joint_route_gpt_generator.pth
+```
+
+you can generate and visualize climbs.
+
+### TB2
+
+```bash
+python scripts/demo_generate_tb2.py --angle 40 --grade 6 --n 4
+```
+
+### Kilter
+
+```bash
+python scripts/demo_generate_kilter.py --angle 40 --grade 6 --n 4
+```
+
+### Generic version
+
+```bash
+python scripts/demo_generate_and_visualize.py \
+  --board tb2 \
+  --angle 40 \
+  --grade 6 \
+  --n 4 \
+  --temperature 0.9 \
+  --top-k 50
+```
+
+Outputs are written to:
+
+```text
+outputs/demo_routes/<board>/angle_<angle>/V<grade>/
+├── generated_routes.csv
+├── generated_route_001.png
+├── generated_route_001.svg
+├── generated_route_002.png
+├── generated_route_002.svg
+└── ...
+```
+
+### Generated-route visualization
+
+The visualization uses calibrated board backgrounds:
+
+```text
+images/tb2_board_12x12_composite.png
+images/kilter-original-16x12_compose.png
+```
+
+These are overlaid using product-size coordinate windows:
+
+```text
+TB2:    x = [-68, 68],  y = [0, 144]
+Kilter: x = [-24, 168], y = [0, 156]
+```
+
+These extents match the old visualization notebooks better than simply using the min/max of observed hold coordinates, because the hold coordinates are inset from the product boundary.
+
+The role markers are:
+
+| Role | Marker |
+|---|---|
+| start | green circle |
+| middle | blue circle |
+| finish | red star |
+| foot | small yellow square |
+
+
+### Annotate holds
+
+To label route holds by placement ID:
+
+```bash
+python scripts/demo_generate_tb2.py \
+  --angle 40 \
+  --grade 6 \
+  --n 2 \
+  --annotate
+```
+
+### CPU/VPS-friendly run
+
+```bash
+python scripts/demo_generate_tb2.py \
+  --angle 40 \
+  --grade 6 \
+  --n 2 \
+  --torch-threads 1
+```
 
 ---
 
-## Comparison with Classical Approach
+## Temperature and sampling
 
-The earlier TB2 project used hand-engineered features with Random Forest and neural networks. This project replaces feature engineering with transformer attention:
+The `--temperature` argument controls generation randomness.
 
-| Aspect | Classical (TB2 Notebooks 01-06) | Transformer (This Project) |
-|---|---|---|
-| Input | 30+ engineered features | Raw token sequences |
-| Feature engineering | Manual (spatial, geometric) | Learned via attention |
-| Board handling | Single board (TB2) | Joint model with board token |
-| Grade prediction | Random Forest / MLP | Transformer encoder |
-| Route generation | Not supported | GPT-style decoder |
-| Interpretability | Feature importance | Attention weights |
+The model predicts probabilities for the next token. Temperature rescales those probabilities before sampling.
+
+| Temperature | Effect |
+|---:|---|
+| `0.3`–`0.6` | conservative; picks safer/common tokens |
+| `0.9` | balanced default |
+| `1.0` | samples directly from the learned probabilities |
+| `1.1`–`1.3` | more exploratory; can produce weirder climbs |
+
+Example:
+
+```bash
+python scripts/demo_generate_kilter.py \
+  --angle 40 \
+  --grade 6 \
+  --n 4 \
+  --temperature 0.6
+```
 
 ---
 
-## Future Extensions
+## Predict grade from board, angle, and frames string
 
-- **Masked hold prediction**: Mask holds and predict them (like BERT's MLM)
-- **Stronger legality constraints**: Enforce valid start/finish positions in generation
-- **Board transfer experiments**: Train on TB2, evaluate on Kilter (zero-shot)
-- **GUI for route generation**: Interactive tool to generate and visualize climbs
-- **Integration with classical features**: Combine transformer embeddings with engineered features
+After training the grade predictor, or after placing a trained checkpoint at:
+
+```text
+models/joint_transformer_grade_predictor.pth
+```
+
+you can predict a grade directly from a BoardLib-style frames string.
+
+### Generic
+
+```bash
+python scripts/demo_predict_grade.py \
+  --board tb2 \
+  --angle 40 \
+  --frames 'p652r5p631r6p322r6p326r7'
+```
+
+### TB2 wrapper
+
+```bash
+python scripts/demo_predict_tb2.py \
+  --angle 40 \
+  --frames 'p652r5p631r6p322r6p326r7'
+```
+
+### Kilter wrapper
+
+```bash
+python scripts/demo_predict_kilter.py \
+  --angle 40 \
+  --frames 'p1127r12p1196r13p1216r13p1388r14'
+```
+
+Example output:
+
+```text
+Board:        Tension Board 2 Mirror (tb2)
+Angle:        40°
+Frames:       p652r5p631r6p322r6p326r7
+Predicted:    V6
+Difficulty:   22.400
+```
+
+The `Predicted` line is the grouped V-grade. The `Difficulty` line is the model's continuous prediction in the underlying BoardLib difficulty scale.
+
+### JSON output
+
+```bash
+python scripts/demo_predict_grade.py \
+  --board kilter \
+  --angle 40 \
+  --frames 'p1127r12p1196r13p1216r13p1388r14' \
+  --json
+```
+
+### Show model tokens
+
+```bash
+python scripts/demo_predict_tb2.py \
+  --angle 40 \
+  --frames 'p652r5p631r6p322r6p326r7' \
+  --show-tokens
+```
+
+### Save a visualization of the input climb
+
+```bash
+python scripts/demo_predict_tb2.py \
+  --angle 40 \
+  --frames 'p652r5p631r6p322r6p326r7' \
+  --visualize
+```
+
+This writes:
+
+```text
+outputs/grade_predictions/<board>/angle_<angle>/
+├── <name>.png
+├── <name>.svg
+└── <name>.json
+```
+
+Example with custom output name:
+
+```bash
+python scripts/demo_predict_kilter.py \
+  --angle 40 \
+  --frames 'p1127r12p1196r13p1216r13p1388r14' \
+  --visualize \
+  --output-name my_kilter_climb
+```
 
 ---
 
-## Acknowledgments
+## Grade prediction in generated-route visualizations
 
-- Board data from [Tension Climbing](https://tensionclimbing.com/) and [Kilter Board](https://kilterboard.com/)
-- Database access via [BoardLib](https://github.com/lemeryf/BoardLib)
-- Original TB2 analysis notebooks for foundational data exploration
+If both checkpoints exist:
+
+```text
+models/joint_route_gpt_generator.pth
+models/joint_transformer_grade_predictor.pth
+```
+
+then the generation demo automatically scores each generated climb with the grade predictor.
+
+Example:
+
+```bash
+python scripts/demo_generate_tb2.py --angle 40 --grade 6 --n 4
+```
+
+The terminal output includes something like:
+
+```text
+predicted=V5 (difficulty=20.81, error=-1 V)
+```
+
+The visualization subtitle also includes:
+
+```text
+predicted V5 (20.81) | error -1V
+```
+
+To disable this scoring:
+
+```bash
+python scripts/demo_generate_tb2.py \
+  --angle 40 \
+  --grade 6 \
+  --n 4 \
+  --no-grade-prediction
+```
+
+To use a non-default grade predictor:
+
+```bash
+python scripts/demo_generate_and_visualize.py \
+  --board kilter \
+  --angle 40 \
+  --grade 6 \
+  --grade-model-path models/joint_transformer_grade_predictor.pth
+```
+
+---
+
+## Important caveats
+
+Generated climbs are **machine-generated candidates**, not guaranteed to be safe, good, or fun.
+
+The grade predictor is a model-based estimate, not ground truth. Climbing grades are noisy and subjective, and board climbs can be highly style-dependent.
+
+The route sequence is a canonical ordering of holds, not necessarily actual beta order. This is fine for symbolic modeling, but it should not be interpreted as the intended movement sequence.
+
+The visualizations are calibrated to match the existing board images, but any change in image file, crop, or coordinate convention may require adjusting board extents in:
+
+```text
+src/climbingboardgpt/visualization.py
+```
+
+---
+
+## Next step: webapp demo
+
+The next planned layer is a simple webapp with:
+
+1. grade prediction from board + angle + frames string,
+2. route generation from board + angle + target grade,
+3. rendered PNG output for both generated climbs and user-submitted climbs.
+
+The webapp should use the same backend helpers already added here:
+
+```text
+load_route_generator(...)
+generate_route(...)
+load_grade_predictor(...)
+predict_frames_grade(...)
+visualize_route_tokens(...)
+```
+
+# License
+This project is licensed under the MIT License. See the [`LICENSE`](LICENSE) file for details.
+
+The project is for educational purposes. Climb data belongs to Tension Climbing and Kilter respectively. 

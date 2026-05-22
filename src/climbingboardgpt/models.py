@@ -41,7 +41,11 @@ class JointRouteTransformerRegressor(nn.Module):
             batch_first=True,
             norm_first=True,
         )
-        self.encoder = nn.TransformerEncoder(encoder_layer, num_layers=num_layers)
+        self.encoder = nn.TransformerEncoder(
+            encoder_layer,
+            num_layers=num_layers,
+            enable_nested_tensor=False,
+        )
         self.norm = nn.LayerNorm(d_model)
         self.head = nn.Sequential(
             nn.Linear(d_model, d_model),
@@ -96,7 +100,11 @@ class JointRouteGPT(nn.Module):
             batch_first=True,
             norm_first=True,
         )
-        self.blocks = nn.TransformerEncoder(layer, num_layers=n_layer)
+        self.blocks = nn.TransformerEncoder(
+            layer,
+            num_layers=n_layer,
+            enable_nested_tensor=False,
+        )
         self.ln_f = nn.LayerNorm(n_embd)
         self.lm_head = nn.Linear(n_embd, vocab_size, bias=False)
         self.lm_head.weight = self.token_emb.weight

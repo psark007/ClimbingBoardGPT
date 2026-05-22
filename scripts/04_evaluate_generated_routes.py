@@ -202,7 +202,15 @@ def main() -> None:
         lambda records: frozenset(int(record["placement_id"]) for record in records)
     )
 
-    validity = pd.DataFrame(df_generated["hold_records"].apply(validity_from_records).tolist())
+    validity = pd.DataFrame(
+        df_generated.apply(
+            lambda row: validity_from_records(
+                row["hold_records"],
+                requested_board_prefix=row.get("requested_board_prefix"),
+            ),
+            axis=1,
+        ).tolist()
+    )
     df_eval = pd.concat([df_generated.reset_index(drop=True), validity], axis=1)
 
     print(f"Evaluated generated routes: {len(df_eval):,}")

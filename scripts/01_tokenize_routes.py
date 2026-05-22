@@ -60,7 +60,7 @@ from climbingboardgpt.tokenization import (
     make_placement_lookup,
     vocab_payload,
 )
-from climbingboardgpt.utils import json_safe, safe_train_test_split, set_seed, write_json
+from climbingboardgpt.utils import assign_group_splits, json_safe, set_seed, write_json
 
 
 def parse_args() -> argparse.Namespace:
@@ -101,8 +101,8 @@ Examples:
     parser.add_argument(
         "--seed",
         type=int,
-        default=42,
-        help="Random seed for reproducible splits (default: 42)",
+        default=3,
+        help="Random seed for reproducible splits (default: 3)",
     )
     return parser.parse_args()
 
@@ -244,41 +244,33 @@ def main() -> None:
     df_routes["ids_with_grade"] = df_routes["tokens_with_grade"].apply(lambda tokens: encode(tokens, stoi))
     df_routes["ids_no_grade"] = df_routes["tokens_no_grade"].apply(lambda tokens: encode(tokens, stoi))
 
+
     # ─────────────────────────────────────────────────────────────────────
-    # Step 6: Train/val/test split (stratified)
+    # Step 6: Train/val/test split (grouped by logical climb)
     # ─────────────────────────────────────────────────────────────────────
-    # We split 80/10/10, stratified by board_key × grouped_v.
-    # This ensures both boards and all difficulty levels are represented
-    # in each split, which is critical for fair evaluation.
+    # A single climb UUID can appear at multiple wall angles. We therefore
+    # split by (board_key, uuid), not by individual rows. This avoids putting
+    # one angle of a climb in train and another angle of the same climb in test.
     #
-    # Stratification prevents scenarios like "all V14 climbs end up in
-    # the test set while training has none."
+    # The split is stratified by board_key × grouped_v at the group level when
+    # possible. The row proportions may differ slightly from 80/10/10 because
+    # some climbs have more angle entries than others, but this is preferable
+    # to route-level leakage or brittle UUID-overwrite logic.
     df_routes["split_stratum"] = (
         df_routes["board_key"].astype(str)
         + "__V"
         + df_routes["grouped_v"].astype(str)
     )
-
-    train_df, temp_df = safe_train_test_split(
+    df_routes["split"] = assign_group_splits(
         df_routes,
+        group_cols=["board_key", "uuid"],
         test_size=0.20,
-        random_state=args.seed,
-        stratify_col="split_stratum",
-    )
-    val_df, test_df = safe_train_test_split(
-        temp_df,
-        test_size=0.50,
+        val_size_within_temp=0.50,
         random_state=args.seed,
         stratify_col="split_stratum",
     )
 
-    split_map = {}
-    split_map.update({uuid: "train" for uuid in train_df["uuid"]})
-    split_map.update({uuid: "val" for uuid in val_df["uuid"]})
-    split_map.update({uuid: "test" for uuid in test_df["uuid"]})
-    df_routes["split"] = df_routes["uuid"].map(split_map)
-
-    print(f"\nSplit counts:")
+    print("\nSplit counts:")
     print(df_routes.groupby(["board_key", "split"]).size().unstack(fill_value=0))
 
     # ─────────────────────────────────────────────────────────────────────

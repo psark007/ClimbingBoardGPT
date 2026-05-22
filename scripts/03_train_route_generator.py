@@ -104,7 +104,7 @@ specific board, or leave unset to generate for all boards.
     parser.add_argument("--generate-board", type=str, default=None, help="Board key: tb2 or kilter")
     parser.add_argument("--generate-angles", type=str, default=None, help="Comma-separated angles")
     parser.add_argument("--generate-grades", type=str, default=None, help="Comma-separated V-grades")
-    parser.add_argument("--seed", type=int, default=42, help="Random seed")
+    parser.add_argument("--seed", type=int, default=3, help="Random seed")
     parser.add_argument("--device", type=str, default=None, help="Device (cpu or cuda)")
     return parser.parse_args()
 

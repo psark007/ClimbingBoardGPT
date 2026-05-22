@@ -19,7 +19,7 @@
   "notes": [
     "Matches the Kilter Original layout used in the earlier Kilter analysis.",
     "The modeling cutoff uses wall angles <= 55 degrees.",
-    "The first-ascent date filter keeps rows after 2016-01-01.",
-    "Placement metadata is restricted to y <= 156, following the earlier notebook pipeline."
+    "First-ascent dates are filtered to after 2016-01-01.",
+    "Placement metadata is restricted to y <= 156."
   ]
 }

@@ -77,13 +77,14 @@ def hold_records(tokens: Iterable[str]) -> list[dict[str, object]]:
     return rows
 
 
-def validity_summary(tokens: Iterable[str]) -> dict[str, object]:
+def validity_summary(tokens: Iterable[str], requested_board_prefix: str | None = None) -> dict[str, object]:
     records = hold_records(tokens)
     placements = [record["placement_id"] for record in records]
     roles = [record["role"] for record in records]
     prefixes = [record["board_prefix"] for record in records]
 
     one_board_only = len(set(prefixes)) <= 1
+    matches_requested_board = requested_board_prefix is None or all(prefix == requested_board_prefix for prefix in prefixes)
     no_duplicates = len(placements) == len(set(placements))
     has_start = "start" in roles
     has_finish = "finish" in roles
@@ -94,6 +95,7 @@ def validity_summary(tokens: Iterable[str]) -> dict[str, object]:
         "n_unique_placements": len(set(placements)),
         "has_duplicate_placements": not no_duplicates,
         "one_board_only": one_board_only,
+        "matches_requested_board": matches_requested_board,
         "has_start": has_start,
         "has_middle": "middle" in roles,
         "has_finish": has_finish,
@@ -101,14 +103,16 @@ def validity_summary(tokens: Iterable[str]) -> dict[str, object]:
         "n_middle": roles.count("middle"),
         "n_foot": roles.count("foot"),
         "n_finish": roles.count("finish"),
-        "basic_valid": bool(one_board_only and no_duplicates and has_start and has_finish and enough_holds),
+        "basic_valid": bool(one_board_only and matches_requested_board and no_duplicates and has_start and has_finish and enough_holds),
     }
 
 
-def generated_tokens_to_frames(tokens: Iterable[str], role_name_to_id: dict[str, int]) -> str:
+def generated_tokens_to_frames(tokens: Iterable[str], role_name_to_id: dict[str, int], board_prefix: str | None = None) -> str:
     pieces = []
     seen = set()
     for record in hold_records(tokens):
+        if board_prefix is not None and str(record["board_prefix"]) != board_prefix:
+            continue
         placement_id = int(record["placement_id"])
         role = str(record["role"])
         if placement_id in seen or role not in role_name_to_id:
@@ -154,7 +158,7 @@ def generate_one(
         forbidden_ids=forbidden_ids,
     )
     tokens = [itos.get(int(idx), "<UNK>") for idx in token_ids]
-    validity = validity_summary(tokens)
+    validity = validity_summary(tokens, requested_board_prefix=board_prefix)
 
     return {
         "requested_board_prefix": board_prefix,
@@ -164,6 +168,6 @@ def generate_one(
         "top_k": None if top_k is None else int(top_k),
         "tokens": tokens,
         "sequence": " ".join(tokens),
-        "frames": generated_tokens_to_frames(tokens, role_name_to_id),
+        "frames": generated_tokens_to_frames(tokens, role_name_to_id, board_prefix=board_prefix),
         **validity,
     }

@@ -75,3 +75,56 @@ def safe_train_test_split(
             random_state=random_state,
             stratify=None,
         )
+
+
+
+def assign_group_splits(
+    df: pd.DataFrame,
+    group_cols: list[str],
+    test_size: float,
+    val_size_within_temp: float,
+    random_state: int,
+    stratify_col: str | None = None,
+) -> pd.Series:
+    """Assign train/val/test splits at group level.
+
+    This prevents multiple rows for the same logical climb, for example the
+    same UUID at several angles, from being distributed across different
+    splits. The returned Series is indexed like ``df`` and contains
+    ``train``, ``val``, or ``test``.
+    """
+    group_df = df[group_cols + ([stratify_col] if stratify_col else [])].copy()
+    group_df["__row_index"] = range(len(group_df))
+    group_df = group_df.drop_duplicates(group_cols).reset_index(drop=True)
+
+    train_groups, temp_groups = safe_train_test_split(
+        group_df,
+        test_size=test_size,
+        random_state=random_state,
+        stratify_col=stratify_col,
+    )
+    val_groups, test_groups = safe_train_test_split(
+        temp_groups,
+        test_size=val_size_within_temp,
+        random_state=random_state,
+        stratify_col=stratify_col,
+    )
+
+    def key_frame(frame: pd.DataFrame) -> set[tuple]:
+        return set(map(tuple, frame[group_cols].astype(str).values.tolist()))
+
+    train_keys = key_frame(train_groups)
+    val_keys = key_frame(val_groups)
+    test_keys = key_frame(test_groups)
+
+    def split_for_row(row) -> str:
+        key = tuple(str(row[col]) for col in group_cols)
+        if key in train_keys:
+            return "train"
+        if key in val_keys:
+            return "val"
+        if key in test_keys:
+            return "test"
+        raise KeyError(f"Could not assign split for group key {key}")
+
+    return df.apply(split_for_row, axis=1)

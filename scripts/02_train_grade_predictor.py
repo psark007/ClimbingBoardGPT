@@ -99,7 +99,7 @@ accuracy (within ±1 V-grade).
     parser.add_argument("--num-layers", type=int, default=4, help="Number of transformer layers")
     parser.add_argument("--dim-feedforward", type=int, default=256, help="Feedforward dimension")
     parser.add_argument("--dropout", type=float, default=0.10, help="Dropout probability")
-    parser.add_argument("--seed", type=int, default=42, help="Random seed")
+    parser.add_argument("--seed", type=int, default=3, help="Random seed")
     parser.add_argument("--device", type=str, default=None, help="Device (cpu or cuda)")
     return parser.parse_args()
 

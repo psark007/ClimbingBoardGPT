@@ -42,17 +42,19 @@ def tokens_to_hold_records(tokens: Iterable[str]) -> list[dict[str, object]]:
     return rows
 
 
-def validity_from_records(records: list[dict[str, object]]) -> dict[str, object]:
+def validity_from_records(records: list[dict[str, object]], requested_board_prefix: str | None = None) -> dict[str, object]:
     placements = [int(record["placement_id"]) for record in records]
     roles = [str(record["role"]) for record in records]
     prefixes = [str(record["board_token_prefix"]) for record in records]
     one_board_only = len(set(prefixes)) <= 1
+    matches_requested_board = requested_board_prefix is None or all(prefix == requested_board_prefix for prefix in prefixes)
 
     out = {
         "n_holds_eval": len(records),
         "n_unique_placements_eval": len(set(placements)),
         "has_duplicate_placements_eval": len(records) != len(set(placements)),
         "one_board_only_eval": one_board_only,
+        "matches_requested_board_eval": matches_requested_board,
         "n_start_eval": roles.count("start"),
         "n_middle_eval": roles.count("middle"),
         "n_foot_eval": roles.count("foot"),
