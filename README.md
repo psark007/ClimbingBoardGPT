@@ -134,9 +134,10 @@ Grade consistency of generated climbs, measured by the trained grade predictor:
 | Exact requested V-grade | 28.2% | 29.5% | 27.0% |
 | Within ±1 V-grade | 70.8% | 68.5% | 73.0% |
 | Within ±2 V-grades | 92.0% | 90.5% | 93.5% |
-| Mean V-grade error | -- | -0.18 | -0.30 |
+| Mean V-grade error | — | -0.18 | -0.30 |
 
 Interpretation: the generator is usually structurally valid and usually close to the requested grade according to the critic, but exact grade control remains imperfect. That is expected: this is a small GPT-style model trained on symbolic route data, not a production setter.
+
 
 ---
 
@@ -378,7 +379,7 @@ python scripts/demo_generate_tb2.py \
   --annotate
 ```
 
-### CPU/VPS-friendly run
+### CPU-  friendly run
 
 ```bash
 python scripts/demo_generate_tb2.py \
@@ -576,25 +577,95 @@ The visualizations are calibrated to match the existing board images, but any ch
 src/climbingboardgpt/visualization.py
 ```
 
+
 ---
 
-## Next step: webapp demo
+## Webapp demo
 
-The next planned layer is a simple webapp with:
+The repository includes a lightweight FastAPI webapp. It is inference-only:
 
-1. grade prediction from board + angle + frames string,
-2. route generation from board + angle + target grade,
-3. rendered PNG output for both generated climbs and user-submitted climbs.
+- loads the generator and grade predictor once at startup,
+- serves the TB2/Kilter board images as static assets,
+- returns hold coordinates and roles as JSON,
+- draws the climb overlay in the browser as SVG.
 
-The webapp should use the same backend helpers already added here:
+### Run locally
+
+From the repository root:
+
+```bash
+pip install fastapi "uvicorn[standard]" pydantic
+uvicorn webapp.app:app --host 127.0.0.1 --port 8055
+```
+
+Then open:
 
 ```text
-load_route_generator(...)
-generate_route(...)
-load_grade_predictor(...)
-predict_frames_grade(...)
-visualize_route_tokens(...)
+http://127.0.0.1:8055
 ```
+
+### Run with Docker
+
+```bash
+docker compose -f docker-compose.webapp.yml up -d --build
+```
+
+The service binds to localhost only:
+
+```text
+127.0.0.1:8055
+```
+
+### Required files for the webapp
+
+The webapp does not need raw SQLite databases. It needs:
+
+```text
+models/joint_route_gpt_generator.pth
+models/joint_transformer_grade_predictor.pth
+data/processed/tokenized/token_metadata.csv
+data/processed/tokenized/token_vocab.json
+configs/
+images/
+src/climbingboardgpt/
+webapp/
+```
+
+### API endpoints
+
+```text
+GET  /api/health
+GET  /api/boards
+POST /api/generate
+POST /api/predict
+```
+
+Example generation payload:
+
+```json
+{
+  "board": "tb2",
+  "angle": 40,
+  "grade": 6,
+  "temperature": 0.9,
+  "top_k": 50,
+  "max_new_tokens": 40
+}
+```
+
+Example prediction payload:
+
+```json
+{
+  "board": "kilter",
+  "angle": 40,
+  "frames": "p1127r12p1196r13p1216r13p1388r14"
+}
+```
+
+Board-size-specific generation is a planned future extension. For now, the demo uses the full TB2 12x12 and Kilter 16x12-style background images and placement sets.
+
+
 
 # License
 This project is licensed under the MIT License. See the [`LICENSE`](LICENSE) file for details.

@@ -4,6 +4,3 @@ scipy
 scikit-learn
 matplotlib
 torch
-jupyter
-nbformat
-boardlib

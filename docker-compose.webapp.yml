@@ -1,0 +1,16 @@
+services:
+  climbingboardgpt-webapp:
+    build:
+      context: .
+      dockerfile: Dockerfile.webapp
+    container_name: climbingboardgpt-webapp
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8055:8055"
+    environment:
+      CBGPT_DEVICE: "cpu"
+      CBGPT_TORCH_THREADS: "1"
+    volumes:
+      - ./models:/app/models:ro
+      - ./data/processed/tokenized:/app/data/processed/tokenized:ro
+      - ./images:/app/images:ro
