@@ -7,7 +7,7 @@ name = "climbingboardgpt"
 version = "0.2.1"
 description = "Unified TB2/Kilter transformer route modeling, grade prediction, and GPT-style route generation."
 readme = "README.md"
-requires-python = ""
+requires-python = ">=3.12"
 dependencies = [
     "numpy",
     "pandas",

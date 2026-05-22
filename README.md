@@ -160,6 +160,10 @@ ClimbingBoardGPT/
 │   ├── joint_transformer_grade_predictor.pth
 │   └── joint_route_gpt_generator.pth
 ├── notebooks/
+│   ├── 01_unified_route_tokenization.ipynb
+│   ├── 02_joint_transformer_grade_prediction.ipynb
+│   ├── 03_joint_route_generator.ipynb
+│   └── 04_generated_route_evaluation.ipynb
 ├── scripts/
 │   ├── 01_tokenize_routes.py
 │   ├── 02_train_grade_predictor.py
@@ -172,6 +176,14 @@ ClimbingBoardGPT/
 │   ├── demo_predict_tb2.py
 │   └── demo_predict_kilter.py
 ├── src/climbingboardgpt/
+├── webapp/
+│   ├── app.py
+│   ├── app.css
+│   ├── app.js
+│   ├── index.html
+│   └── Dockerfile
+├── docker-compose.webapp.yml
+├── LICENSE
 ├── README.md
 ├── requirements.txt
 └── pyproject.toml

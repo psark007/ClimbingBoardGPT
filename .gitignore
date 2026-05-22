@@ -4,3 +4,4 @@ images/*
 notebooks/*_executed.ipynb
 src/climbingboardgpt/__pycache__
 outputs/
+webapp/__pycache__
