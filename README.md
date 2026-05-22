@@ -2,8 +2,8 @@
 
 **ClimbingBoardGPT** is a unified transformer-style modeling project for climbing-board routes on:
 
-- **Tension Board 2 Mirror**
-- **Kilter Board Original**
+- **Tension Board 2 Mirror** (12ftx12ft)
+- **Kilter Board Original** (16ftx12ft)
 
 The project treats climbing-board problems as symbolic sequences of board-aware hold-role tokens. It supports:
 
@@ -637,6 +637,7 @@ models/joint_route_gpt_generator.pth
 models/joint_transformer_grade_predictor.pth
 data/processed/tokenized/token_metadata.csv
 data/processed/tokenized/token_vocab.json
+data/processed/tokenized/route_sequences.csv
 configs/
 images/
 src/climbingboardgpt/
@@ -675,7 +676,9 @@ Example prediction payload:
 }
 ```
 
-Board-size-specific generation is a planned future extension. For now, the demo uses the full TB2 12x12 and Kilter 16x12-style background images and placement sets.
+# Future Work
+- Board-size-specific generation is a planned future extension. For now, the demo uses the full TB2 12x12 and Kilter 16x12-style background images and placement sets.
+- "No Match" token and "No Match" options in the demo. 
 
 
 

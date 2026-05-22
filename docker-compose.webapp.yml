@@ -2,7 +2,7 @@ services:
   climbingboardgpt-webapp:
     build:
       context: .
-      dockerfile: Dockerfile.webapp
+      dockerfile: webapp/Dockerfile
     container_name: climbingboardgpt-webapp
     restart: unless-stopped
     ports:

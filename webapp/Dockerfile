@@ -1,23 +1,34 @@
-FROM python:3.11-slim
+FROM python:3.12-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
 WORKDIR /app
 
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends build-essential \
-    && rm -rf /var/lib/apt/lists/*
+# Install CPU-only PyTorch first (separate index, ~200MB vs ~2.5GB)
+RUN pip install --no-cache-dir \
+    --index-url https://download.pytorch.org/whl/cpu \
+    torch
 
-COPY requirements.txt pyproject.toml README.md ./
+# Install only runtime dependencies (no matplotlib, jupyter, etc.)
+COPY pyproject.toml README.md ./
 COPY src ./src
+
+RUN pip install --no-cache-dir -e . \
+    --no-deps \
+    && pip install --no-cache-dir \
+    numpy \
+    pandas \
+    scipy \
+    matplotlib \
+    scikit-learn \
+    fastapi \
+    "uvicorn[standard]" \
+    pydantic
+
 COPY configs ./configs
 COPY images ./images
 COPY webapp ./webapp
-
-RUN pip install --no-cache-dir --upgrade pip \
-    && pip install --no-cache-dir fastapi "uvicorn[standard]" pydantic \
-    && pip install --no-cache-dir -e .
 
 EXPOSE 8055
 
