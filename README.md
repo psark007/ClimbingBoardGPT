@@ -1,5 +1,7 @@
 # ClimbingBoardGPT
 
+[![Live Demo](https://img.shields.io/badge/demo-webapp-teal)](https://cbgpt.pawelsarkowicz.xyz)
+
 **ClimbingBoardGPT** is a unified transformer-style modeling project for climbing-board routes on:
 
 - **Tension Board 2 Mirror** (12ftx12ft)
