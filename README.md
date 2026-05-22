@@ -11,9 +11,10 @@ The project treats climbing-board problems as symbolic sequences of board-aware 
 2. transformer-based grade prediction,
 3. GPT-style route generation conditioned on board, wall angle, and target grade,
 4. calibrated board-background visualization,
-5. command-line demo scripts for generation and grade prediction.
+5. command-line demo scripts for generation and grade prediction,
+6. interactive FastAPI webapp with board-image overlay and click-to-build route prediction.
 
-This repo is the transformer/GPT follow-up project to [Tension-Board-2-Analysis] and [Kilter-Board-Analysis]. 
+This repo is the transformer/GPT follow-up project to [Tension-Board-2-Analysis](https://github.com/psark007/Tension-Board-2-Analysis) and [Kilter-Board-Analysis](https://github.com/psark007/Kilter-Board-Analysis). 
 
 ---
 
