@@ -14,3 +14,4 @@ services:
       - ./models:/app/models:ro
       - ./data/processed/tokenized:/app/data/processed/tokenized:ro
       - ./images:/app/images:ro
+      - ./webapp:/app/webapp:ro
