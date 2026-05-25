@@ -211,7 +211,7 @@ def _role_limit_validity(tokens: list[str], requested_board_prefix: str) -> dict
     """Extra webapp validity checks for start/finish counts.
 
     The lower-level validity check requires at least one start and at least one
-    finish, but BoardLib-style climbs should not have arbitrarily many starts or
+    finish, but climbs should not have arbitrarily many starts or
     finishes. For this demo we enforce at most two starts and at most two finishes.
     """
     counts = {

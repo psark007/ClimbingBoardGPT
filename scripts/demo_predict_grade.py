@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Predict a climb grade from board, angle, and BoardLib frames string.
+"""Predict a climb grade from board, angle, and frames string.
 
 Examples
 --------

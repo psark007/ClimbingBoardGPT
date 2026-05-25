@@ -50,6 +50,44 @@ For grade prediction, the grade token is removed:
 
 The model then predicts the climb difficulty from the board, angle, and hold-role tokens.
 
+## How generation and grading work
+
+The project uses one shared vocabulary across both boards. Every climb is converted into a short symbolic sequence: board token, angle token, optional grade token, and one token per hold/role pair. Hold tokens also carry board identity, so the model can learn TB2 and Kilter patterns together without mixing placement IDs.
+
+The **grade predictor** is a transformer encoder. For this task the grade token is removed and `<BOS>` is replaced with `<CLS>`. The model reads the board, angle, hold roles, and learned coordinate features for each hold token, then regresses a continuous difficulty value. That numeric prediction is mapped back into a grouped V-grade for demos and evaluation.
+
+At inference time, grade prediction is:
+
+1. parse a frames string into `(placement_id, role_id)` pairs,
+2. canonicalize the route order using role, height, and horizontal position,
+3. convert the route to model tokens such as `<CLS> <BOARD_TB2> <ANGLE_40> <TB2_p344_start> ... <EOS>`,
+4. encode those tokens as integer IDs and pad/truncate to the model's max sequence length,
+5. add three coordinate features for each token: normalized x, normalized y, and whether the token is a hold,
+6. run the transformer encoder and read the final `<CLS>` representation,
+7. pass the route through a neural network to get a continuous difficulty prediction,
+8. map that prediction into the grouped V-grade scale.
+
+The **route generator** is a small GPT-style causal transformer. It starts from a prompt such as:
+
+```text
+<BOS> <BOARD_KILTER> <ANGLE_40> <GRADE_V6>
+```
+
+Then it samples the next token repeatedly until `<EOS>` or a maximum length is reached. At each step:
+
+1. the current sequence is cropped to the model's context window,
+2. the causal transformer predicts logits for the next token,
+3. forbidden tokens such as `<PAD>`, `<UNK>`, `<BOS>`, `<CLS>`, and `<MASK>` are masked out,
+4. logits are divided by the sampling temperature,
+5. optional top-k filtering keeps only the `k` most likely next tokens,
+6. softmax turns the filtered logits into probabilities,
+7. `torch.multinomial` samples one next token from that probability distribution,
+8. the sampled token is appended to the sequence.
+
+Lower temperature makes the distribution sharper and more conservative. Higher temperature flattens it and makes unusual tokens more likely. Top-k prevents very low-probability tokens from being sampled at all. The sampled hold-role tokens are converted back into a frames string such as `p1084r12p1231r13...`.
+
+Generation is checked after sampling rather than hard-constrained during decoding. The helper code removes duplicate placements, checks that all holds belong to the requested board, requires starts and finishes, and the webapp retries a few times when `valid_only` is enabled. The trained grade predictor can also score generated climbs as a critic, which is how the evaluation measures whether generated routes are close to the requested grade.
+
 
 ---
 
@@ -222,12 +260,14 @@ This caps PyTorch CPU thread usage.
 
 ## Data expected by the full training pipeline
 
-The full tokenization/training pipeline expects raw BoardLib databases at:
+The full tokenization/training pipeline expects raw board databases at:
 
 ```text
 data/raw/tb2.db
 data/raw/kilter.db
 ```
+
+These databases can be downloaded with the [`BoardLib`](https://github.com/lemeryfertitta/BoardLib) CLI commands recorded in the board config files. After that import step, the project treats them simply as source board data.
 
 The project configs are:
 
@@ -486,7 +526,7 @@ After training the grade predictor, or after placing a trained checkpoint at:
 models/joint_transformer_grade_predictor.pth
 ```
 
-you can predict a grade directly from a BoardLib-style frames string.
+you can predict a grade directly from a frames string.
 
 ### Generic
 
@@ -523,7 +563,7 @@ Predicted:    V6
 Difficulty:   22.400
 ```
 
-The `Predicted` line is the grouped V-grade. The `Difficulty` line is the model's continuous prediction in the underlying BoardLib difficulty scale.
+The `Predicted` line is the grouped V-grade. The `Difficulty` line is the model's continuous prediction on the source difficulty scale.
 
 ### JSON output
 

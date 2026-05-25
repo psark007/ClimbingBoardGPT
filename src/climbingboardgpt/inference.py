@@ -305,7 +305,7 @@ def predict_frames_grade(
     board_config: BoardConfig,
     df_token_meta,
 ) -> dict[str, object]:
-    """Predict grade from board, angle, and a BoardLib frames string."""
+    """Predict grade from board, angle, and a frames string."""
     tokens = frames_to_grade_model_tokens(
         frames=frames,
         angle=angle,
