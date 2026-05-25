@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import ast
 from typing import Iterable
 
 import numpy as np
@@ -37,6 +38,43 @@ def parse_frames(frames_str: str | None) -> list[tuple[int, int]]:
         return []
     matches = re.findall(r"p(\d+)r(\d+)", frames_str)
     return [(int(placement_id), int(role_id)) for placement_id, role_id in matches]
+
+
+def parse_tokens(value) -> list[str]:
+    """Parse tokens from a list, repr-style list string, or whitespace sequence."""
+    if isinstance(value, list):
+        return [str(v) for v in value]
+    if not isinstance(value, str):
+        return []
+
+    try:
+        parsed = ast.literal_eval(value)
+        if isinstance(parsed, list):
+            return [str(v) for v in parsed]
+    except Exception:
+        pass
+
+    return value.split()
+
+
+def tokens_to_hold_records(tokens: Iterable[str]) -> list[dict[str, object]]:
+    """Extract hold records from model tokens using the shared hold-token grammar."""
+    rows: list[dict[str, object]] = []
+    for token in tokens:
+        match = HOLD_TOKEN_PATTERN.match(str(token))
+        if match is None:
+            continue
+        board_prefix = match.group(1)
+        rows.append(
+            {
+                "token": str(token),
+                "board_token_prefix": board_prefix,
+                "board_prefix": board_prefix,
+                "placement_id": int(match.group(2)),
+                "role": match.group(3),
+            }
+        )
+    return rows
 
 
 def make_placement_lookup(df_placements: pd.DataFrame) -> dict[tuple[str, int], dict]:

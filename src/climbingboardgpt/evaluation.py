@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import ast
 import re
 from typing import Iterable
 
@@ -8,38 +7,11 @@ import numpy as np
 import pandas as pd
 from scipy.spatial.distance import pdist
 
-HOLD_TOKEN_PATTERN = re.compile(r"^<([A-Z0-9_]+)_p(\d+)_(start|middle|finish|foot|unknown)>$")
+from .tokenization import parse_tokens, tokens_to_hold_records
 
 
 def parse_token_list(value) -> list[str]:
-    if isinstance(value, list):
-        return value
-    if not isinstance(value, str):
-        return []
-    try:
-        parsed = ast.literal_eval(value)
-        if isinstance(parsed, list):
-            return parsed
-    except Exception:
-        pass
-    return value.split()
-
-
-def tokens_to_hold_records(tokens: Iterable[str]) -> list[dict[str, object]]:
-    rows = []
-    for token in tokens:
-        match = HOLD_TOKEN_PATTERN.match(token)
-        if match is None:
-            continue
-        rows.append(
-            {
-                "token": token,
-                "board_token_prefix": match.group(1),
-                "placement_id": int(match.group(2)),
-                "role": match.group(3),
-            }
-        )
-    return rows
+    return parse_tokens(value)
 
 
 def validity_from_records(records: list[dict[str, object]], requested_board_prefix: str | None = None) -> dict[str, object]:
@@ -102,29 +74,29 @@ def nearest_real_route_same_board(
     real_df: pd.DataFrame,
 ) -> dict[str, object]:
     board_frame = real_df[real_df["board_key"] == generated_board_key]
-    best = {
-        "nearest_real_jaccard": -1.0,
-        "nearest_real_uuid": None,
-        "nearest_real_name": None,
-        "nearest_real_grouped_v": None,
-        "nearest_real_angle": None,
+    if board_frame.empty:
+        return {
+            "nearest_real_jaccard": np.nan,
+            "nearest_real_uuid": None,
+            "nearest_real_name": None,
+            "nearest_real_grouped_v": None,
+            "nearest_real_angle": None,
+            "novelty_distance": np.nan,
+        }
+
+    similarities = board_frame["hold_set"].map(lambda hold_set: jaccard(generated_set, hold_set))
+    best_idx = similarities.idxmax()
+    row = board_frame.loc[best_idx]
+
+    nearest_real_jaccard = float(similarities.loc[best_idx])
+    return {
+        "nearest_real_jaccard": nearest_real_jaccard,
+        "nearest_real_uuid": row["uuid"],
+        "nearest_real_name": row["climb_name"],
+        "nearest_real_grouped_v": row["grouped_v"],
+        "nearest_real_angle": row["angle"],
+        "novelty_distance": 1.0 - nearest_real_jaccard,
     }
-
-    for _, row in board_frame.iterrows():
-        similarity = jaccard(generated_set, row["hold_set"])
-        if similarity > best["nearest_real_jaccard"]:
-            best.update(
-                {
-                    "nearest_real_jaccard": similarity,
-                    "nearest_real_uuid": row["uuid"],
-                    "nearest_real_name": row["climb_name"],
-                    "nearest_real_grouped_v": row["grouped_v"],
-                    "nearest_real_angle": row["angle"],
-                }
-            )
-
-    best["novelty_distance"] = 1.0 - float(best["nearest_real_jaccard"])
-    return best
 
 
 def build_placement_coords(df_token_meta: pd.DataFrame) -> dict[tuple[str, int], dict[str, float]]:

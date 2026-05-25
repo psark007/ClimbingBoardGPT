@@ -104,6 +104,12 @@ Examples:
         default=3,
         help="Random seed for reproducible splits (default: 3)",
     )
+    parser.add_argument(
+        "--max-routes-per-board",
+        type=int,
+        default=None,
+        help="Optional smoke-test row limit per board before tokenization.",
+    )
     return parser.parse_args()
 
 
@@ -121,6 +127,8 @@ def main() -> None:
     8. Save all artifacts to disk
     """
     args = parse_args()
+    if args.max_routes_per_board is not None and args.max_routes_per_board < 3:
+        raise ValueError("--max-routes-per-board must be at least 3 so train/val/test splits can exist.")
     
     # Set random seed for reproducibility
     # This ensures train/val/test splits are the same across runs
@@ -165,7 +173,13 @@ def main() -> None:
     #   placement 369 with role 6 (middle)
     #   placement 603 with role 7 (finish)
     print("\nLoading data from databases...")
-    df_climbs, df_placements = load_multi_board_data(configs, project_root=REPO_ROOT)
+    if args.max_routes_per_board is not None:
+        print(f"  Smoke-test limit: loading at most {args.max_routes_per_board:,} climb-angle rows per board")
+    df_climbs, df_placements = load_multi_board_data(
+        configs,
+        project_root=REPO_ROOT,
+        max_climbs_per_board=args.max_routes_per_board,
+    )
     placement_lookup = make_placement_lookup(df_placements)
 
     print(f"  Total climb-angle entries: {len(df_climbs):,}")

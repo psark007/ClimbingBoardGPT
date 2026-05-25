@@ -1,17 +1,31 @@
 :root {
-  --bg: #263238;
-  --bg-alt: #1f2a30;
-  --panel: #2f3d43;
-  --panel-soft: #37474f;
-  --ink: #eceff1;
-  --muted: #b0bec5;
-  --faint: #90a4ae;
-  --border: #455a64;
-  --accent: #80cbc4;
-  --accent-2: #ffcc80;
-  --danger: #ef9a9a;
-  --shadow: 0 18px 48px rgba(0, 0, 0, 0.22);
-  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  --base00: #263238;
+  --base01: #2e3c43;
+  --base02: #314549;
+  --base03: #546e7a;
+  --base04: #b2ccd6;
+  --base05: #eeffff;
+  --base07: #ffffff;
+  --base08: #f07178;
+  --base0a: #ffcb6b;
+  --base0b: #c3e88d;
+  --base0c: #89ddff;
+  --base0d: #82aaff;
+  --base0e: #c792ea;
+  --base0f: #ff5370;
+  --bg: var(--base00);
+  --off-bg: var(--base01);
+  --inner-bg: var(--base02);
+  --fg: var(--base05);
+  --off-fg: var(--base04);
+  --muted: var(--base03);
+  --link: var(--base0d);
+  --hover: var(--base0c);
+  --highlight: var(--base0a);
+  --logo: var(--base0b);
+  --danger: var(--base08);
+  --border: rgba(178, 204, 214, 0.18);
+  --mono: "Fira Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
 }
 
 * { box-sizing: border-box; }
@@ -19,57 +33,60 @@
 body {
   margin: 0;
   font-family: var(--mono);
-  background:
-    radial-gradient(circle at top left, rgba(128, 203, 196, 0.07), transparent 32rem),
-    var(--bg);
-  color: var(--ink);
+  font-size: 16px;
+  line-height: 1.5rem;
+  background: var(--bg);
+  color: var(--fg);
 }
 
 .site-header {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  gap: 1rem;
-  padding: 1.35rem 2rem;
-  border-bottom: 1px solid var(--border);
-  background: var(--bg-alt);
+  gap: 1.5rem;
+  max-width: 78rem;
+  margin: 1rem auto 0;
+  padding: 0 1rem;
 }
 
 .eyebrow {
-  margin: 0 0 0.35rem;
-  color: var(--accent);
-  font-size: 0.82rem;
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
+  margin: 0;
+  color: var(--logo);
+  font-size: 1rem;
 }
 
 .site-header h1 {
   margin: 0;
-  font-size: clamp(1.35rem, 2vw, 2.05rem);
-  letter-spacing: -0.04em;
+  font-size: 1rem;
+  font-weight: 600;
 }
 
-.site-header p {
-  margin: 0.4rem 0 0;
+.site-header h1::before {
+  content: "# ";
   color: var(--muted);
 }
 
+.site-header p {
+  margin: 0;
+  color: var(--off-fg);
+}
+
 .health {
+  flex-shrink: 0;
   font-size: 0.78rem;
-  color: var(--accent-2);
+  color: var(--highlight);
   white-space: nowrap;
   border: 1px solid var(--border);
-  border-radius: 999px;
-  padding: 0.45rem 0.7rem;
-  background: rgba(0, 0, 0, 0.15);
+  padding: 0.25rem 0.5rem;
+  background: var(--inner-bg);
 }
 
 .layout {
   display: grid;
-  grid-template-columns: 370px minmax(0, 1fr);
-  gap: 1.25rem;
-  padding: 1.25rem;
-  max-width: 1520px;
+  grid-template-columns: 22rem minmax(0, 1fr);
+  gap: 2rem;
+  padding: 2rem 1rem 1rem;
+  max-width: 78rem;
   margin: 0 auto;
 }
 
@@ -80,25 +97,28 @@ body {
 }
 
 .card, .result-card {
-  background: var(--panel);
+  background: var(--off-bg);
   border: 1px solid var(--border);
-  border-radius: 10px;
-  box-shadow: var(--shadow);
   padding: 1rem;
 }
 
 .card h2, .result-card h2 {
-  margin: 0 0 0.8rem;
-  font-size: 1.0rem;
-  color: var(--accent);
-  letter-spacing: -0.02em;
+  margin: 0 0 1rem;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--fg);
+}
+
+.card h2::before, .result-card h2::before {
+  content: "## ";
+  color: var(--muted);
 }
 
 label {
   display: block;
   margin: 0.7rem 0;
   font-size: 0.82rem;
-  color: var(--muted);
+  color: var(--off-fg);
 }
 
 input, select, textarea {
@@ -106,16 +126,15 @@ input, select, textarea {
   width: 100%;
   margin-top: 0.28rem;
   border: 1px solid var(--border);
-  border-radius: 6px;
   padding: 0.6rem 0.7rem;
   font: inherit;
-  color: var(--ink);
-  background: #1c272c;
+  color: var(--fg);
+  background: var(--inner-bg);
 }
 
 input:focus, select:focus, textarea:focus {
-  outline: 2px solid rgba(128, 203, 196, 0.32);
-  border-color: var(--accent);
+  outline: 2px solid rgba(137, 221, 255, 0.28);
+  border-color: var(--hover);
 }
 
 textarea {
@@ -126,24 +145,31 @@ textarea {
 
 button {
   width: 100%;
-  border: 1px solid #4db6ac;
-  border-radius: 6px;
+  border: 1px solid var(--link);
   padding: 0.68rem 0.9rem;
   margin-top: 0.4rem;
   font-weight: 700;
-  color: #102022;
-  background: var(--accent);
+  color: var(--bg);
+  background: var(--link);
   cursor: pointer;
   font-family: var(--mono);
 }
 
-button:hover { filter: brightness(1.06); }
+button:hover {
+  border-color: var(--hover);
+  background: var(--hover);
+}
 button:disabled { opacity: 0.55; cursor: not-allowed; }
 
 button.secondary {
   background: transparent;
-  color: var(--accent);
+  color: var(--link);
   border-color: var(--border);
+}
+
+button.secondary:hover {
+  color: var(--bg);
+  border-color: var(--hover);
 }
 
 .button-row {
@@ -153,7 +179,7 @@ button.secondary {
 }
 
 .note p, .small {
-  color: var(--muted);
+  color: var(--off-fg);
   font-size: 0.82rem;
   line-height: 1.45;
 }
@@ -162,7 +188,7 @@ button.secondary {
   list-style: none;
   margin: 0.8rem 0 0;
   padding: 0;
-  color: var(--muted);
+  color: var(--off-fg);
   font-size: 0.78rem;
   max-height: 160px;
   overflow: auto;
@@ -185,8 +211,17 @@ button.secondary {
 
 .result-header p {
   margin: 0;
-  color: var(--muted);
+  color: var(--off-fg);
   font-size: 0.84rem;
+}
+
+.result-note {
+  max-width: 760px;
+  margin: 0 auto 0.85rem;
+  color: var(--off-fg);
+  font-size: 0.78rem;
+  line-height: 1.45;
+  text-align: center;
 }
 
 .board-stage {
@@ -194,10 +229,9 @@ button.secondary {
   width: 100%;
   max-width: 960px;
   margin: 0 auto;
-  border-radius: 8px;
   overflow: hidden;
   border: 1px solid var(--border);
-  background: #111827;
+  background: var(--bg);
 }
 
 .board-stage img {
@@ -225,24 +259,23 @@ button.secondary {
 .hover-marker {
   pointer-events: none;
   fill: none;
-  stroke: var(--accent-2);
+  stroke: var(--highlight);
   stroke-width: 0.55;
   opacity: 0.9;
 }
 
 .json-block {
   margin-top: 1rem;
-  color: var(--muted);
+  color: var(--off-fg);
 }
 
 .json-block pre {
   overflow: auto;
   max-height: 300px;
   padding: 1rem;
-  background: #111a1f;
-  color: #cfd8dc;
+  background: var(--inner-bg);
+  color: var(--off-fg);
   border: 1px solid var(--border);
-  border-radius: 8px;
   font-size: 0.76rem;
 }
 
@@ -266,10 +299,9 @@ button.secondary {
 .warning-box {
   margin: 0.7rem auto 0.85rem;
   max-width: 760px;
-  border: 1px solid rgba(255, 204, 128, 0.55);
-  background: rgba(255, 204, 128, 0.12);
-  color: var(--accent-2);
-  border-radius: 8px;
+  border: 1px solid rgba(255, 203, 107, 0.55);
+  background: rgba(255, 203, 107, 0.12);
+  color: var(--highlight);
   padding: 0.65rem 0.8rem;
   font-size: 0.8rem;
   text-align: left;
@@ -287,7 +319,7 @@ button.secondary {
 .field-help {
   display: block;
   margin-top: 0.35rem;
-  color: var(--faint);
+  color: var(--muted);
   font-size: 0.72rem;
   line-height: 1.35;
 }
@@ -297,7 +329,7 @@ button.secondary {
 }
 
 .explain dt {
-  color: var(--accent-2);
+  color: var(--highlight);
   font-size: 0.78rem;
   margin-top: 0.75rem;
 }
@@ -308,16 +340,15 @@ button.secondary {
 
 .explain dd {
   margin: 0.22rem 0 0;
-  color: var(--muted);
+  color: var(--off-fg);
   font-size: 0.78rem;
   line-height: 1.45;
 }
 
 .explain code {
-  color: var(--accent-2);
-  background: rgba(0, 0, 0, 0.2);
+  color: var(--off-fg);
+  background: var(--inner-bg);
   border: 1px solid var(--border);
-  border-radius: 4px;
   padding: 0.05rem 0.25rem;
   font-size: 0.74rem;
 }
@@ -325,23 +356,47 @@ button.secondary {
 .link-list {
   margin: 0;
   padding-left: 1.1rem;
-  color: var(--muted);
+  color: var(--off-fg);
   font-size: 0.82rem;
   line-height: 1.6;
 }
 
+.link-list li::marker {
+  content: "* ";
+  color: var(--muted);
+}
+
 .link-list a {
-  color: var(--accent);
-  text-decoration: none;
+  color: var(--link);
 }
 
 .link-list a:hover {
-  text-decoration: underline;
+  color: var(--hover);
+}
+
+.site-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.5rem;
+  max-width: 78rem;
+  margin: 0 auto 1.5rem;
+  padding: 0 1rem;
+  color: var(--off-fg);
+  font-size: 0.82rem;
+}
+
+.site-footer a {
+  color: var(--link);
+}
+
+.site-footer a:hover {
+  color: var(--hover);
 }
 
 
-#data-acknowledgement-card p {
-  color: var(--muted);
+#data-acknowledgement-card p,
+#model-disclaimer-card p {
+  color: var(--off-fg);
   font-size: 0.8rem;
   line-height: 1.45;
 }

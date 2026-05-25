@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>ClimbingBoardGPT</title>
-  <link rel="stylesheet" href="/static/app.css?v=16" />
+  <link rel="stylesheet" href="/static/app.css?v=17" />
 </head>
 <body>
   <header class="site-header">
@@ -94,6 +94,13 @@
         </dl>
       </div>
 
+      <div class="card note" id="model-disclaimer-card">
+        <h2>Research demo caveat</h2>
+        <p>
+          This is an experimental model demo. Generated climbs and predicted grades may be wrong, especially at rare grades or sparse board/angle combinations.
+        </p>
+      </div>
+
       <div class="card explain">
         <h2>How this works</h2>
         <p>
@@ -111,6 +118,7 @@
         <ul class="link-list">
           <li><a href="https://pawelsarkowicz.xyz" target="_blank" rel="noreferrer">pawelsarkowicz.xyz</a></li>
           <li><a href="https://github.com/psark007/ClimbingBoardGPT" target="_blank" rel="noreferrer">ClimbingBoardGPT repo</a></li>
+          <li><a href="https://github.com/psark007/ClimbingBoardGPT/blob/main/LICENSE" target="_blank" rel="noreferrer">License</a></li>
           <li><a href="https://github.com/psark007/Tension-Board-2-Analysis" target="_blank" rel="noreferrer">Tension Board 2 Analysis repo</a></li>
           <li><a href="https://github.com/psark007/Kilter-Board-Analysis" target="_blank" rel="noreferrer">Kilter Board Analysis repo</a></li>
           <li><a href="https://tensionclimbing.com/products/tension-board-2" target="_blank" rel="noreferrer">Tension Board 2</a></li>
@@ -118,10 +126,10 @@
         </ul>
       </div>
 
-            <div class="card note" id="data-acknowledgement-card">
+      <div class="card note" id="data-acknowledgement-card">
         <h2>Data acknowledgement</h2>
         <p>
-          Tension Board 2 route data is from Tension Climbing. Kilter Board route data is from Kilter.
+          Board layouts, hold metadata, and route data are derived from Tension Board 2 and Kilter Board datasets. This project is unaffiliated with Tension Climbing or Kilter.
         </p>
       </div>
 
@@ -159,6 +167,10 @@
           <button id="clear-board-btn" class="secondary clear-board">Clear board</button>
         </div>
 
+        <p class="result-note">
+          Known climb means an exact match against the tokenized dataset for the same board, angle, and hold-role set.
+        </p>
+
         <div id="board-stage" class="board-stage">
           <img id="board-bg" alt="Board background" />
           <svg id="overlay" xmlns="http://www.w3.org/2000/svg"></svg>
@@ -172,6 +184,13 @@
     </section>
   </main>
 
-  <script src="/static/app.js?v=16"></script>
+  <footer class="site-footer">
+    <span>© Pawel Sarkowicz</span>
+    <a href="https://pawelsarkowicz.xyz" target="_blank" rel="noreferrer">pawelsarkowicz.xyz</a>
+    <a href="https://github.com/psark007/ClimbingBoardGPT" target="_blank" rel="noreferrer">ClimbingBoardGPT</a>
+    <a href="https://github.com/psark007/ClimbingBoardGPT/blob/main/LICENSE" target="_blank" rel="noreferrer">License</a>
+  </footer>
+
+  <script src="/static/app.js?v=17"></script>
 </body>
 </html>

@@ -1,12 +1,11 @@
 from __future__ import annotations
 
-import re
 from typing import Iterable
 
 import torch
 import torch.nn.functional as F
 
-HOLD_TOKEN_PATTERN = re.compile(r"^<([A-Z0-9_]+)_p(\d+)_(start|middle|finish|foot|unknown)>$")
+from .tokenization import tokens_to_hold_records
 
 
 def top_k_filter(logits: torch.Tensor, k: int | None) -> torch.Tensor:
@@ -61,20 +60,7 @@ def prompt_tokens(board_prefix: str, angle: int, grouped_v: int) -> list[str]:
 
 
 def hold_records(tokens: Iterable[str]) -> list[dict[str, object]]:
-    rows = []
-    for token in tokens:
-        match = HOLD_TOKEN_PATTERN.match(token)
-        if match is None:
-            continue
-        rows.append(
-            {
-                "board_prefix": match.group(1),
-                "placement_id": int(match.group(2)),
-                "role": match.group(3),
-                "token": token,
-            }
-        )
-    return rows
+    return tokens_to_hold_records(tokens)
 
 
 def validity_summary(tokens: Iterable[str], requested_board_prefix: str | None = None) -> dict[str, object]:

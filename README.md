@@ -158,7 +158,7 @@ ClimbingBoardGPT/
 │   └── processed/
 ├── images/
 │   ├── tb2_board_12x12_composite.png
-│   └── kilter-original-16x12_compose.png
+│   └── kilter-original-16x12_composite.png
 ├── models/
 │   ├── joint_transformer_grade_predictor.pth
 │   └── joint_route_gpt_generator.pth
@@ -246,6 +246,53 @@ They define board-specific details such as:
 - optional date / placement filters.
 
 The demo scripts do **not** need the raw databases if the processed tokenization artifacts and trained model checkpoints already exist.
+
+The interactive webapp also needs local demo assets:
+
+```text
+data/processed/tokenized/token_metadata.csv
+models/joint_transformer_grade_predictor.pth
+models/joint_route_gpt_generator.pth
+images/tb2_board_12x12_composite.png
+images/kilter-original-16x12_composite.png
+```
+
+These files are ignored by git because they are generated or binary artifacts. Recreate them with the training pipeline, copy them from a previous run, or mount them into the Docker container as shown in `docker-compose.webapp.yml`.
+
+---
+
+## Fast test pipeline
+
+To verify that scripts `01` through `04` still work without retraining the full models, run the pipeline into a temporary output directory with a tiny data sample and tiny CPU-only models:
+
+```bash
+python scripts/01_tokenize_routes.py \
+  --out-dir /tmp/cbgpt_smoke/tokenized \
+  --max-routes-per-board 20
+
+python scripts/02_train_grade_predictor.py \
+  --tokenized-dir /tmp/cbgpt_smoke/tokenized \
+  --out-dir /tmp/cbgpt_smoke/grade_prediction \
+  --model-dir /tmp/cbgpt_smoke/models \
+  --smoke-test
+
+python scripts/03_train_route_generator.py \
+  --tokenized-dir /tmp/cbgpt_smoke/tokenized \
+  --out-dir /tmp/cbgpt_smoke/generation \
+  --model-dir /tmp/cbgpt_smoke/models \
+  --smoke-test \
+  --generate-angles 40 \
+  --generate-grades 6
+
+python scripts/04_evaluate_generated_routes.py \
+  --tokenized-dir /tmp/cbgpt_smoke/tokenized \
+  --generated-dir /tmp/cbgpt_smoke/generation \
+  --out-dir /tmp/cbgpt_smoke/evaluation \
+  --grade-model-path /tmp/cbgpt_smoke/models/joint_transformer_grade_predictor.pth \
+  --device cpu
+```
+
+The resulting metrics and generated climbs are not meaningful. This path is only a code-path check: it verifies database loading, tokenization, training loops, checkpoint saving/loading, generation, and evaluation without touching the normal `data/processed` or `models` outputs.
 
 ---
 
@@ -360,7 +407,7 @@ The visualization uses calibrated board backgrounds:
 
 ```text
 images/tb2_board_12x12_composite.png
-images/kilter-original-16x12_compose.png
+images/kilter-original-16x12_composite.png
 ```
 
 These are overlaid using product-size coordinate windows:
@@ -688,4 +735,4 @@ Example prediction payload:
 # License
 This project is licensed under the MIT License. See the [`LICENSE`](LICENSE) file for details.
 
-The project is for educational purposes. Climb data belongs to Tension Climbing and Kilter respectively. 
+The project is for educational purposes. Climb data belongs to Tension Climbing and Kilter respectively.

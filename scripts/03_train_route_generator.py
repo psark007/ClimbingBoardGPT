@@ -63,6 +63,7 @@ from climbingboardgpt.config import load_board_configs, parse_board_keys
 from climbingboardgpt.datasets import RouteGPTDataset
 from climbingboardgpt.generation import generate_one
 from climbingboardgpt.models import JointRouteGPT
+from climbingboardgpt.tokenization import encode as encode_tokens
 from climbingboardgpt.utils import set_seed
 
 
@@ -106,7 +107,30 @@ specific board, or leave unset to generate for all boards.
     parser.add_argument("--generate-grades", type=str, default=None, help="Comma-separated V-grades")
     parser.add_argument("--seed", type=int, default=3, help="Random seed")
     parser.add_argument("--device", type=str, default=None, help="Device (cpu or cuda)")
+    parser.add_argument("--num-workers", type=int, default=0, help="DataLoader worker processes")
+    parser.add_argument(
+        "--smoke-test",
+        action="store_true",
+        help="Use a tiny CPU model, one epoch, and a tiny generation grid to exercise the full code path.",
+    )
     return parser.parse_args()
+
+
+def apply_smoke_test_defaults(args: argparse.Namespace) -> None:
+    """Mutate args to a tiny deterministic configuration for code-path checks."""
+    if not args.smoke_test:
+        return
+    args.epochs = 1
+    args.patience = 1
+    args.batch_size = min(args.batch_size, 16)
+    args.n_embd = 32
+    args.n_head = 2
+    args.n_layer = 1
+    args.dropout = 0.0
+    args.max_new_tokens = min(args.max_new_tokens, 16)
+    args.n_per_condition = 1
+    args.device = "cpu"
+    args.num_workers = 0
 
 
 def evaluate_loss(model, loader, device) -> float:
@@ -168,6 +192,7 @@ def main() -> None:
     7. Save model checkpoint and generated routes
     """
     args = parse_args()
+    apply_smoke_test_defaults(args)
     set_seed(args.seed)
     args.out_dir.mkdir(parents=True, exist_ok=True)
     args.model_dir.mkdir(parents=True, exist_ok=True)
@@ -185,7 +210,7 @@ def main() -> None:
     stoi = {str(k): int(v) for k, v in vocab["stoi"].items()}
     itos = {int(k): str(v) for k, v in vocab["itos"].items()}
     pad_id = stoi["<PAD>"]
-    unk_id = stoi["<UNK>"]
+    device = torch.device(args.device or ("cuda" if torch.cuda.is_available() else "cpu"))
 
     # ─────────────────────────────────────────────────────────────────────
     # Step 2: Prepare sequences for causal language modeling
@@ -198,11 +223,8 @@ def main() -> None:
     #
     # The input is shifted right by one position compared to the target.
     # This is the standard causal language modeling setup.
-    def encode(tokens):
-        return [stoi.get(token, unk_id) for token in tokens]
-
     df_routes["gpt_tokens"] = df_routes["sequence_with_grade"].fillna("").str.split()
-    df_routes["gpt_ids"] = df_routes["gpt_tokens"].apply(encode)
+    df_routes["gpt_ids"] = df_routes["gpt_tokens"].apply(lambda tokens: encode_tokens(tokens, stoi))
     df_routes["seq_len"] = df_routes["gpt_ids"].apply(len)
     max_len = int(df_routes["seq_len"].max())
     if max_len < 2:
@@ -220,14 +242,17 @@ def main() -> None:
     val_ds = RouteGPTDataset(val_df, max_len=max_len, pad_id=pad_id)
     test_ds = RouteGPTDataset(test_df, max_len=max_len, pad_id=pad_id)
 
-    train_loader = DataLoader(train_ds, batch_size=args.batch_size, shuffle=True)
-    val_loader = DataLoader(val_ds, batch_size=args.batch_size, shuffle=False)
-    test_loader = DataLoader(test_ds, batch_size=args.batch_size, shuffle=False)
+    loader_kwargs = {
+        "num_workers": int(args.num_workers),
+        "pin_memory": device.type == "cuda",
+    }
+    train_loader = DataLoader(train_ds, batch_size=args.batch_size, shuffle=True, **loader_kwargs)
+    val_loader = DataLoader(val_ds, batch_size=args.batch_size, shuffle=False, **loader_kwargs)
+    test_loader = DataLoader(test_ds, batch_size=args.batch_size, shuffle=False, **loader_kwargs)
 
     # ─────────────────────────────────────────────────────────────────────
     # Step 4: Initialize model
     # ─────────────────────────────────────────────────────────────────────
-    device = torch.device(args.device or ("cuda" if torch.cuda.is_available() else "cpu"))
     model = JointRouteGPT(
         vocab_size=len(stoi),
         block_size=block_size,

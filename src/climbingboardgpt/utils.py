@@ -94,7 +94,6 @@ def assign_group_splits(
     ``train``, ``val``, or ``test``.
     """
     group_df = df[group_cols + ([stratify_col] if stratify_col else [])].copy()
-    group_df["__row_index"] = range(len(group_df))
     group_df = group_df.drop_duplicates(group_cols).reset_index(drop=True)
 
     train_groups, temp_groups = safe_train_test_split(

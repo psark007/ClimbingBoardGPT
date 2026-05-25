@@ -88,7 +88,7 @@ def parse_args() -> argparse.Namespace:
         help=(
             "Optional board image to draw under the scatter plot. "
             "If omitted, the script automatically uses images/tb2_board_12x12_composite.png "
-            "for TB2 and images/kilter-original-16x12_compose.png for Kilter when present."
+            "for TB2 and images/kilter-original-16x12_composite.png for Kilter when present."
         ),
     )
     return parser.parse_args()
@@ -98,7 +98,7 @@ def parse_args() -> argparse.Namespace:
 def default_background_for_board(board: str) -> Path | None:
     candidates = {
         "tb2": REPO_ROOT / "images" / "tb2_board_12x12_composite.png",
-        "kilter": REPO_ROOT / "images" / "kilter-original-16x12_compose.png",
+        "kilter": REPO_ROOT / "images" / "kilter-original-16x12_composite.png",
     }
     path = candidates.get(board)
     return path if path is not None and path.exists() else None

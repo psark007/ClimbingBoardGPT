@@ -10,6 +10,7 @@ from pathlib import Path
 
 import torch
 
+from .checkpoints import load_checkpoint
 from .config import BoardConfig, load_board_config
 from .generation import generate_one
 from .grades import to_grouped_v
@@ -75,10 +76,7 @@ def load_grade_predictor(
 
     resolved_device = torch.device(device or ("cuda" if torch.cuda.is_available() else "cpu"))
 
-    try:
-        checkpoint = torch.load(checkpoint_path, map_location=resolved_device, weights_only=False)
-    except TypeError:
-        checkpoint = torch.load(checkpoint_path, map_location=resolved_device)
+    checkpoint = load_checkpoint(checkpoint_path, map_location=resolved_device, trusted=True)
 
     cfg = checkpoint["config"]
     stoi = {str(k): int(v) for k, v in checkpoint["stoi"].items()}
@@ -176,10 +174,7 @@ def load_route_generator(
 
     resolved_device = torch.device(device or ("cuda" if torch.cuda.is_available() else "cpu"))
 
-    try:
-        checkpoint = torch.load(checkpoint_path, map_location=resolved_device, weights_only=False)
-    except TypeError:
-        checkpoint = torch.load(checkpoint_path, map_location=resolved_device)
+    checkpoint = load_checkpoint(checkpoint_path, map_location=resolved_device, trusted=True)
 
     cfg = checkpoint["config"]
     stoi = {str(k): int(v) for k, v in checkpoint["stoi"].items()}
@@ -332,4 +327,3 @@ def predict_frames_grade(
         "requested_angle": int(angle),
         "frames": frames,
     }
-

@@ -6,15 +6,13 @@ coordinate extent, then scatter route holds in board coordinates.
 """
 from __future__ import annotations
 
-import ast
-import re
 from pathlib import Path
 from typing import Iterable
 
 import matplotlib.pyplot as plt
 import pandas as pd
 
-HOLD_TOKEN_PATTERN = re.compile(r"^<([A-Z0-9_]+)_p(\d+)_(start|middle|finish|foot|unknown)>$")
+from .tokenization import parse_tokens, tokens_to_hold_records
 
 # These are the same coordinate windows used in the earlier visualization
 # notebooks. They come from the product size geometry rather than from the
@@ -58,39 +56,9 @@ ROLE_SIZES = {
 }
 
 
-def parse_tokens(value) -> list[str]:
-    """Parse a generated token list from a list, repr string, or sequence string."""
-    if isinstance(value, list):
-        return [str(v) for v in value]
-    if not isinstance(value, str):
-        return []
-
-    try:
-        parsed = ast.literal_eval(value)
-        if isinstance(parsed, list):
-            return [str(v) for v in parsed]
-    except Exception:
-        pass
-
-    return value.split()
-
-
 def tokens_to_route_records(tokens: Iterable[str]) -> pd.DataFrame:
     """Extract generated hold records from model tokens."""
-    rows = []
-    for token in tokens:
-        match = HOLD_TOKEN_PATTERN.match(str(token))
-        if match is None:
-            continue
-        rows.append(
-            {
-                "token": token,
-                "board_token_prefix": match.group(1),
-                "placement_id": int(match.group(2)),
-                "role": match.group(3),
-            }
-        )
-    return pd.DataFrame(rows)
+    return pd.DataFrame(tokens_to_hold_records(tokens))
 
 
 def load_token_metadata(tokenized_dir: str | Path) -> pd.DataFrame:

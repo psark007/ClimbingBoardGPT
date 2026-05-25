@@ -62,7 +62,10 @@ from climbingboardgpt.datasets import RouteGradeDataset
 from climbingboardgpt.grades import to_grouped_v
 from climbingboardgpt.metrics import metrics_by_board, print_metrics, regression_metrics
 from climbingboardgpt.models import JointRouteTransformerRegressor
+from climbingboardgpt.tokenization import encode as encode_tokens
 from climbingboardgpt.utils import set_seed, write_json
+
+MSE_LOSS = nn.MSELoss()
 
 
 def parse_args() -> argparse.Namespace:
@@ -101,7 +104,29 @@ accuracy (within ±1 V-grade).
     parser.add_argument("--dropout", type=float, default=0.10, help="Dropout probability")
     parser.add_argument("--seed", type=int, default=3, help="Random seed")
     parser.add_argument("--device", type=str, default=None, help="Device (cpu or cuda)")
+    parser.add_argument("--num-workers", type=int, default=0, help="DataLoader worker processes")
+    parser.add_argument(
+        "--smoke-test",
+        action="store_true",
+        help="Use a tiny CPU model and one epoch to exercise the training/evaluation code path.",
+    )
     return parser.parse_args()
+
+
+def apply_smoke_test_defaults(args: argparse.Namespace) -> None:
+    """Mutate args to a tiny deterministic configuration for code-path checks."""
+    if not args.smoke_test:
+        return
+    args.epochs = 1
+    args.patience = 1
+    args.batch_size = min(args.batch_size, 16)
+    args.d_model = 32
+    args.nhead = 2
+    args.num_layers = 1
+    args.dim_feedforward = 64
+    args.dropout = 0.0
+    args.device = "cpu"
+    args.num_workers = 0
 
 
 def build_coord_features(df_token_meta: pd.DataFrame, vocab_size: int) -> torch.Tensor:
@@ -148,9 +173,8 @@ def run_epoch(model, loader, device, optimizer=None):
     """
     is_train = optimizer is not None
     model.train(is_train)
-    criterion = nn.MSELoss()
 
-    losses, preds, targets, uuids, boards = [], [], [], [], []
+    losses, preds, targets, row_ids, uuids, boards = [], [], [], [], [], []
 
     for batch in loader:
         input_ids = batch["input_ids"].to(device)
@@ -162,7 +186,7 @@ def run_epoch(model, loader, device, optimizer=None):
 
         # Forward pass: model predicts difficulty from token sequence
         pred = model(input_ids, attention_mask)
-        loss = criterion(pred, target)
+        loss = MSE_LOSS(pred, target)
 
         if is_train:
             # Backward pass: compute gradients and update weights
@@ -174,11 +198,12 @@ def run_epoch(model, loader, device, optimizer=None):
         losses.append(loss.item() * input_ids.size(0))
         preds.extend(pred.detach().cpu().numpy().tolist())
         targets.extend(target.detach().cpu().numpy().tolist())
+        row_ids.extend(batch["row_id"].detach().cpu().numpy().tolist())
         uuids.extend(batch["uuid"])
         boards.extend(batch["board_key"])
 
     avg_loss = sum(losses) / max(1, len(loader.dataset))
-    return avg_loss, np.asarray(preds), np.asarray(targets), uuids, boards
+    return avg_loss, np.asarray(preds), np.asarray(targets), row_ids, uuids, boards
 
 
 def main() -> None:
@@ -195,6 +220,7 @@ def main() -> None:
     8. Save model checkpoint and metrics
     """
     args = parse_args()
+    apply_smoke_test_defaults(args)
     set_seed(args.seed)
     args.out_dir.mkdir(parents=True, exist_ok=True)
     args.model_dir.mkdir(parents=True, exist_ok=True)
@@ -215,7 +241,7 @@ def main() -> None:
     df_token_meta = pd.read_csv(meta_path)
 
     pad_id = stoi["<PAD>"]
-    unk_id = stoi["<UNK>"]
+    device = torch.device(args.device or ("cuda" if torch.cuda.is_available() else "cpu"))
 
     # ─────────────────────────────────────────────────────────────────────
     # Step 2: Prepare input sequences
@@ -223,15 +249,13 @@ def main() -> None:
     # For grade prediction, we use the "no_grade" version of the sequence
     # and prepend <CLS> for sequence-level pooling.
     # The model must PREDICT the grade, not see it in the input!
-    def encode(tokens):
-        return [stoi.get(token, unk_id) for token in tokens]
-
     df_routes["tokens_no_grade"] = df_routes["sequence_no_grade"].fillna("").str.split()
     df_routes["model_tokens"] = df_routes["tokens_no_grade"].apply(
         lambda tokens: ["<CLS>"] + tokens[1:] if tokens else ["<CLS>"]
     )
-    df_routes["model_ids"] = df_routes["model_tokens"].apply(encode)
+    df_routes["model_ids"] = df_routes["model_tokens"].apply(lambda tokens: encode_tokens(tokens, stoi))
     df_routes["seq_len"] = df_routes["model_ids"].apply(len)
+    df_routes["row_id"] = np.arange(len(df_routes), dtype=np.int64)
     max_len = int(df_routes["seq_len"].max())
 
     # ─────────────────────────────────────────────────────────────────────
@@ -245,14 +269,17 @@ def main() -> None:
     val_ds = RouteGradeDataset(val_df, max_len=max_len, pad_id=pad_id)
     test_ds = RouteGradeDataset(test_df, max_len=max_len, pad_id=pad_id)
 
-    train_loader = DataLoader(train_ds, batch_size=args.batch_size, shuffle=True)
-    val_loader = DataLoader(val_ds, batch_size=args.batch_size, shuffle=False)
-    test_loader = DataLoader(test_ds, batch_size=args.batch_size, shuffle=False)
+    loader_kwargs = {
+        "num_workers": int(args.num_workers),
+        "pin_memory": device.type == "cuda",
+    }
+    train_loader = DataLoader(train_ds, batch_size=args.batch_size, shuffle=True, **loader_kwargs)
+    val_loader = DataLoader(val_ds, batch_size=args.batch_size, shuffle=False, **loader_kwargs)
+    test_loader = DataLoader(test_ds, batch_size=args.batch_size, shuffle=False, **loader_kwargs)
 
     # ─────────────────────────────────────────────────────────────────────
     # Step 4: Initialize model
     # ─────────────────────────────────────────────────────────────────────
-    device = torch.device(args.device or ("cuda" if torch.cuda.is_available() else "cpu"))
     coord_features = build_coord_features(df_token_meta, vocab_size=len(stoi))
 
     model = JointRouteTransformerRegressor(
@@ -286,8 +313,8 @@ def main() -> None:
 
     print("\nStarting training...")
     for epoch in range(1, args.epochs + 1):
-        train_loss, train_pred, train_true, _, _ = run_epoch(model, train_loader, device, optimizer)
-        val_loss, val_pred, val_true, _, _ = run_epoch(model, val_loader, device, optimizer=None)
+        train_loss, train_pred, train_true, _, _, _ = run_epoch(model, train_loader, device, optimizer)
+        val_loss, val_pred, val_true, _, _, _ = run_epoch(model, val_loader, device, optimizer=None)
 
         train_metrics = regression_metrics(train_true, train_pred)
         val_metrics = regression_metrics(val_true, val_pred)
@@ -332,10 +359,11 @@ def main() -> None:
     # ─────────────────────────────────────────────────────────────────────
     # Step 6: Test set evaluation
     # ─────────────────────────────────────────────────────────────────────
-    test_loss, test_pred, test_true, test_uuid, test_board = run_epoch(model, test_loader, device, optimizer=None)
+    test_loss, test_pred, test_true, test_row_id, test_uuid, test_board = run_epoch(model, test_loader, device, optimizer=None)
     overall_metrics = regression_metrics(test_true, test_pred)
 
     pred_df = pd.DataFrame({
+        "row_id": test_row_id,
         "uuid": test_uuid,
         "board_key": test_board,
         "y_true": test_true,
@@ -344,12 +372,14 @@ def main() -> None:
         "true_v": [to_grouped_v(value) for value in test_true],
         "pred_v": [to_grouped_v(value) for value in test_pred],
     })
-    pred_df = pred_df.merge(
-        df_routes[["uuid", "climb_name", "angle", "boulder_grade", "sequence_no_grade"]],
-        on="uuid",
-        how="left",
-    )
     board_metrics_df = metrics_by_board(pred_df)
+
+    pred_df = pred_df.merge(
+        df_routes[["row_id", "climb_name", "angle", "boulder_grade", "sequence_no_grade"]],
+        on="row_id",
+        how="left",
+        validate="one_to_one",
+    )
 
     print_metrics("Overall joint test performance", overall_metrics)
     print("\nBoard-specific test performance:")

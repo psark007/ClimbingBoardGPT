@@ -6,6 +6,7 @@ from torch.utils.data import Dataset
 
 class RouteGradeDataset(Dataset):
     def __init__(self, df, max_len: int, pad_id: int):
+        self.row_ids = df["row_id"].tolist() if "row_id" in df.columns else df.index.tolist()
         self.ids = df["model_ids"].tolist()
         self.targets = df["display_difficulty"].astype(float).values
         self.uuids = df["uuid"].tolist()
@@ -28,6 +29,7 @@ class RouteGradeDataset(Dataset):
             "input_ids": torch.tensor(ids, dtype=torch.long),
             "attention_mask": torch.tensor(mask, dtype=torch.bool),
             "target": torch.tensor(self.targets[idx], dtype=torch.float32),
+            "row_id": int(self.row_ids[idx]),
             "uuid": self.uuids[idx],
             "board_key": self.boards[idx],
         }

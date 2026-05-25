@@ -135,12 +135,14 @@ def build_placements_query(config: BoardConfig) -> tuple[str, list]:
 def load_board_data(
     config: BoardConfig,
     project_root: str | Path | None = None,
+    max_climbs: int | None = None,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Load climbs and placements data for a single board.
     
     Args:
         config: Board configuration
         project_root: Path to project root (for resolving db_path)
+        max_climbs: Optional row limit for fast smoke-test loads.
         
     Returns:
         Tuple of (climbs DataFrame, placements DataFrame)
@@ -154,6 +156,11 @@ def load_board_data(
 
     climbs_query, climbs_params = build_climbs_query(config)
     placements_query, placements_params = build_placements_query(config)
+    if max_climbs is not None:
+        if max_climbs < 1:
+            raise ValueError("max_climbs must be at least 1.")
+        climbs_query = f"{climbs_query}\nORDER BY c.uuid, cs.angle\nLIMIT ?"
+        climbs_params = [*climbs_params, int(max_climbs)]
 
     with sqlite3.connect(db_path) as conn:
         df_climbs = pd.read_sql_query(climbs_query, conn, params=climbs_params)
@@ -174,6 +181,7 @@ def load_board_data(
 def load_multi_board_data(
     configs: list[BoardConfig],
     project_root: str | Path | None = None,
+    max_climbs_per_board: int | None = None,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Load and concatenate data from multiple boards.
     
@@ -184,6 +192,7 @@ def load_multi_board_data(
     Args:
         configs: List of board configurations
         project_root: Path to project root
+        max_climbs_per_board: Optional row limit per board for smoke tests.
         
     Returns:
         Tuple of (combined climbs DataFrame, combined placements DataFrame)
@@ -192,7 +201,11 @@ def load_multi_board_data(
     placement_frames = []
 
     for config in configs:
-        climbs, placements = load_board_data(config, project_root=project_root)
+        climbs, placements = load_board_data(
+            config,
+            project_root=project_root,
+            max_climbs=max_climbs_per_board,
+        )
         climb_frames.append(climbs)
         placement_frames.append(placements)
 
