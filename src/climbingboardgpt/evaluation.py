@@ -84,7 +84,17 @@ def nearest_real_route_same_board(
     generated_board_key: str,
     real_df: pd.DataFrame,
 ) -> dict[str, object]:
-    """Find the most similar real route on the same board by Jaccard score."""
+    """Find the most similar real route on the same board by Jaccard score.
+
+    .. note::
+
+       This function performs an O(n) linear scan over all real routes for
+       the matching board, computing a Jaccard similarity for each one. With
+       ~256K training examples, evaluating 400 generated routes costs roughly
+       O(100M) Jaccard comparisons. This is acceptable for evaluation scripts
+       but would not scale to a real-time or high-throughput setting without
+       an approximate nearest-neighbour index.
+    """
     board_frame = real_df[real_df["board_key"] == generated_board_key]
     if board_frame.empty:
         return {

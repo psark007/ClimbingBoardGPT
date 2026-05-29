@@ -85,6 +85,23 @@ class JointRouteGPT(nn.Module):
 
     PyTorch's ``TransformerEncoder`` is used with a causal mask, which makes it
     behave like a decoder-only language model for short route sequences.
+
+    Why use ``TransformerEncoder`` rather than ``TransformerDecoder``?
+    -------------------------------------------------------------------
+    PyTorch's ``TransformerDecoderLayer`` expects two inputs: a decoder
+    sequence and a separate encoder memory for cross-attention. For
+    unconditional or prompt-conditioned generation there is no encoder,
+    so ``TransformerDecoderLayer`` would always ignore the second input
+    or require a dummy placeholder. Using ``TransformerEncoder`` with a
+    causal mask avoids this mismatch, keeps the module list uniform,
+    and produces identical behaviour for short autoregressive generation.
+
+    The trade-off is that ``TransformerEncoder`` does not natively prevent
+    attention to future positions — the causal mask must be constructed
+    manually (see ``forward``). For the sequence lengths seen here
+    (at most ~400 tokens) the overhead of the upper-triangular mask is
+    negligible, and ``enable_nested_tensor=False`` is set to avoid SDPA
+    optimisations that do not support masked encoders.
     """
 
     def __init__(

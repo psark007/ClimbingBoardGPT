@@ -66,7 +66,7 @@ def parse_tokens(value) -> list[str]:
         parsed = ast.literal_eval(value)
         if isinstance(parsed, list):
             return [str(v) for v in parsed]
-    except Exception:
+    except (SyntaxError, ValueError):
         pass
 
     return value.split()
