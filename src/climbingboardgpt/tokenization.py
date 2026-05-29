@@ -1,3 +1,10 @@
+"""Route tokenization helpers shared by training, evaluation, and demos.
+
+The project represents every climb as a short symbolic sequence. Board,
+angle, grade, and hold-role information are all encoded as tokens, while hold
+tokens are namespaced by board so placement IDs from different products cannot
+collide.
+"""
 from __future__ import annotations
 
 import re
@@ -19,6 +26,8 @@ SPECIAL_TOKENS = [
     "<MASK>",
 ]
 
+# The token grammar is intentionally centralized here so training, generation,
+# evaluation, and the webapp parse the same strings in the same way.
 ANGLE_TOKEN_PATTERN = re.compile(r"^<ANGLE_(-?\d+)>$")
 GRADE_TOKEN_PATTERN = re.compile(r"^<GRADE_V(\d+)>$")
 BOARD_TOKEN_PATTERN = re.compile(r"^<BOARD_([A-Z0-9_]+)>$")
@@ -34,6 +43,12 @@ ROLE_SORT_ORDER = {
 
 
 def parse_frames(frames_str: str | None) -> list[tuple[int, int]]:
+    """Parse a frames string into ``(placement_id, role_id)`` pairs.
+
+    Frames strings are compact concatenations such as ``p344r5p369r6``. Invalid
+    or missing input returns an empty list so callers can skip unusable climbs
+    without special-case exception handling.
+    """
     if not isinstance(frames_str, str):
         return []
     matches = re.findall(r"p(\d+)r(\d+)", frames_str)
@@ -78,6 +93,7 @@ def tokens_to_hold_records(tokens: Iterable[str]) -> list[dict[str, object]]:
 
 
 def make_placement_lookup(df_placements: pd.DataFrame) -> dict[tuple[str, int], dict]:
+    """Build a coordinate/metadata lookup keyed by ``(board_key, placement_id)``."""
     rows = {}
     for _, row in df_placements.iterrows():
         key = (str(row["board_key"]), int(row["placement_id"]))
@@ -86,6 +102,7 @@ def make_placement_lookup(df_placements: pd.DataFrame) -> dict[tuple[str, int], 
 
 
 def role_name(role_id: int, config: BoardConfig) -> str:
+    """Map a board-specific numeric role ID to a shared semantic role name."""
     return config.role_id_to_name.get(int(role_id), "unknown")
 
 
@@ -94,6 +111,7 @@ def placement_xy(
     placement_id: int,
     placement_lookup: dict[tuple[str, int], dict],
 ) -> tuple[float, float]:
+    """Return raw board coordinates for a placement, or NaNs if unknown."""
     row = placement_lookup.get((str(board_key), int(placement_id)))
     if row is None:
         return (float("nan"), float("nan"))
@@ -105,7 +123,15 @@ def canonicalize_holds(
     config: BoardConfig,
     placement_lookup: dict[tuple[str, int], dict],
 ) -> list[tuple[int, int]]:
+    """Sort holds into the canonical route order used by all model inputs.
+
+    Frames preserve setter/storage order, which is not always stable
+    across routes or boards. Canonical ordering keeps starts first, hand/foot
+    holds in a bottom-to-top scan, and finishes last, giving the models a more
+    consistent sequence grammar.
+    """
     def key(pair: tuple[int, int]):
+        """Sort by semantic role, then board position, then placement ID."""
         placement_id, role_id = pair
         x, y = placement_xy(config.board_key, placement_id, placement_lookup)
         name = role_name(role_id, config)
@@ -120,10 +146,12 @@ def canonicalize_holds(
 
 
 def board_token(config: BoardConfig) -> str:
+    """Return the special conditioning token for a board config."""
     return f"<BOARD_{config.token_prefix}>"
 
 
 def angle_token(angle: float) -> str:
+    """Round a wall angle into the shared angle-token format."""
     return f"<ANGLE_{int(round(float(angle)))}>"
 
 
@@ -132,6 +160,7 @@ def hold_token(
     role_id: int,
     config: BoardConfig,
 ) -> str:
+    """Return a board-namespaced hold token for a placement and role."""
     semantic_role = role_name(role_id, config)
     return f"<{config.token_prefix}_p{int(placement_id)}_{semantic_role}>"
 
@@ -143,6 +172,12 @@ def tokenize_route(
     include_grade: bool = True,
     canonical: bool = True,
 ) -> list[str]:
+    """Tokenize one climb row into the sequence consumed by the models.
+
+    ``include_grade=True`` is used for GPT-style generation, where the target
+    grade is a conditioning token. ``include_grade=False`` is used for grade
+    prediction so the model cannot read the answer from its input.
+    """
     holds = parse_frames(row["frames"])
     if canonical:
         holds = canonicalize_holds(holds, config, placement_lookup)
@@ -165,6 +200,12 @@ def build_route_records(
     configs_by_key: dict[str, BoardConfig],
     placement_lookup: dict[tuple[str, int], dict],
 ) -> pd.DataFrame:
+    """Create one training/evaluation record per climb-angle row.
+
+    The returned frame keeps both human-readable route metadata and model-ready
+    token sequences, which lets downstream scripts save compact CSV summaries
+    while still retaining the richer JSONL training artifacts.
+    """
     records: list[dict] = []
 
     for _, row in df_climbs.iterrows():
@@ -230,6 +271,7 @@ def build_route_records(
 
 
 def build_vocab(df_routes: pd.DataFrame) -> tuple[list[str], dict[str, int], dict[int, str]]:
+    """Build the shared token vocabulary from grade-conditioned sequences."""
     all_tokens: list[str] = []
     for tokens in df_routes["tokens_with_grade"]:
         all_tokens.extend(tokens)
@@ -245,11 +287,13 @@ def build_vocab(df_routes: pd.DataFrame) -> tuple[list[str], dict[str, int], dic
 
 
 def encode(tokens: Iterable[str], stoi: dict[str, int]) -> list[int]:
+    """Convert tokens to integer IDs, using ``<UNK>`` for unseen tokens."""
     unk_id = stoi["<UNK>"]
     return [stoi.get(token, unk_id) for token in tokens]
 
 
 def decode(ids: Iterable[int], itos: dict[int, str]) -> list[str]:
+    """Convert integer IDs back to token strings."""
     return [itos.get(int(idx), "<UNK>") for idx in ids]
 
 
@@ -260,6 +304,12 @@ def build_token_metadata(
     placement_lookup: dict[tuple[str, int], dict],
     configs_by_prefix: dict[str, BoardConfig],
 ) -> pd.DataFrame:
+    """Build per-token metadata used for coordinate features and plotting.
+
+    Hold tokens receive raw coordinates, normalized coordinates in ``[-1, 1]``,
+    role labels, and board identity. Non-hold tokens keep neutral coordinate
+    features so the grade predictor can safely index every token ID.
+    """
     bounds = {}
     for board_key, frame in df_placements.groupby("board_key"):
         xs = frame["x"].astype(float)
@@ -272,6 +322,7 @@ def build_token_metadata(
         }
 
     def normalize(value: float, lo: float, hi: float) -> float:
+        """Scale one coordinate into ``[-1, 1]`` with safe missing-value handling."""
         if pd.isna(value) or hi == lo:
             return 0.0
         return 2 * ((float(value) - lo) / (hi - lo)) - 1
@@ -353,6 +404,7 @@ def vocab_payload(
     itos: dict[int, str],
     configs_by_key: dict[str, BoardConfig],
 ) -> dict:
+    """Package vocabulary and board metadata for JSON serialization."""
     return {
         "stoi": stoi,
         "itos": {str(k): v for k, v in itos.items()},

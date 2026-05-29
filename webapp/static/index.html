@@ -7,6 +7,7 @@
   <link rel="stylesheet" href="/static/app.css?v=17" />
 </head>
 <body>
+  <!-- Top-level status: the app script replaces this with model readiness. -->
   <header class="site-header">
     <div>
       <p class="eyebrow">ClimbingBoardGPT</p>
@@ -17,6 +18,7 @@
   </header>
 
   <main class="layout">
+    <!-- Left column: generation controls, prediction controls, and project notes. -->
     <section class="controls">
       <div class="card">
         <h2>Generate a climb</h2>
@@ -158,6 +160,7 @@
       </div>
     </section>
 
+    <!-- Right column: generated/predicted route result and SVG board overlay. -->
     <section class="viewer">
       <div class="result-card">
         <div class="result-header">
@@ -184,6 +187,7 @@
     </section>
   </main>
 
+  <!-- External project links and license metadata. -->
   <footer class="site-footer">
     <span>© Pawel Sarkowicz</span>
     <a href="https://pawelsarkowicz.xyz" target="_blank" rel="noreferrer">pawelsarkowicz.xyz</a>

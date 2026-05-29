@@ -1,3 +1,4 @@
+"""Neural network definitions for grade prediction and route generation."""
 from __future__ import annotations
 
 import torch
@@ -6,7 +7,13 @@ import torch.nn.functional as F
 
 
 class JointRouteTransformerRegressor(nn.Module):
-    """Transformer encoder for joint TB2/Kilter route difficulty prediction."""
+    """Transformer encoder for joint TB2/Kilter route difficulty prediction.
+
+    Inputs are token IDs plus an attention mask. Token, position, and learned
+    projections of coordinate metadata are added before the encoder. The first
+    ``<CLS>`` position is then used as a pooled route representation for scalar
+    difficulty regression.
+    """
 
     def __init__(
         self,
@@ -20,6 +27,7 @@ class JointRouteTransformerRegressor(nn.Module):
         dropout: float = 0.10,
         pad_id: int = 0,
     ):
+        """Create the encoder, coordinate projection, and regression head."""
         super().__init__()
         self.vocab_size = vocab_size
         self.max_len = max_len
@@ -55,9 +63,12 @@ class JointRouteTransformerRegressor(nn.Module):
         )
 
     def forward(self, input_ids: torch.Tensor, attention_mask: torch.Tensor) -> torch.Tensor:
+        """Return one continuous difficulty prediction per input sequence."""
         batch_size, seq_len = input_ids.shape
         positions = torch.arange(seq_len, device=input_ids.device).unsqueeze(0).expand(batch_size, seq_len)
 
+        # Coordinate features are indexed by token ID, so every occurrence of a
+        # hold token gets the same physical x/y hint wherever it appears.
         x = self.token_emb(input_ids) + self.pos_emb(positions)
         x = x + self.coord_proj(self.coord_features[input_ids])
 
@@ -70,7 +81,11 @@ class JointRouteTransformerRegressor(nn.Module):
 
 
 class JointRouteGPT(nn.Module):
-    """Tiny GPT-style causal transformer for board-conditioned route generation."""
+    """Tiny GPT-style causal transformer for board-conditioned route generation.
+
+    PyTorch's ``TransformerEncoder`` is used with a causal mask, which makes it
+    behave like a decoder-only language model for short route sequences.
+    """
 
     def __init__(
         self,
@@ -82,6 +97,7 @@ class JointRouteGPT(nn.Module):
         dropout: float = 0.10,
         pad_id: int = 0,
     ):
+        """Create the token/position embeddings, causal blocks, and LM head."""
         super().__init__()
         self.vocab_size = vocab_size
         self.block_size = block_size
@@ -114,6 +130,7 @@ class JointRouteGPT(nn.Module):
         idx: torch.Tensor,
         targets: torch.Tensor | None = None,
     ) -> tuple[torch.Tensor, torch.Tensor | None]:
+        """Return next-token logits and, when targets are supplied, CE loss."""
         _, seq_len = idx.shape
         if seq_len > self.block_size:
             idx = idx[:, -self.block_size :]
@@ -126,6 +143,8 @@ class JointRouteGPT(nn.Module):
             torch.ones(seq_len, seq_len, device=idx.device, dtype=torch.bool),
             diagonal=1,
         )
+        # Padding masks suppress attention to right-padded context tokens while
+        # the causal mask suppresses attention to future positions.
         key_padding_mask = idx.eq(self.pad_id)
 
         h = self.blocks(

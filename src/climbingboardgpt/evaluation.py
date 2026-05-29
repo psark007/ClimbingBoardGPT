@@ -1,3 +1,9 @@
+"""Evaluation utilities for generated climbing-board routes.
+
+The helpers in this module are intentionally model-agnostic: they work from
+tokens, frames strings, and token metadata so notebooks, scripts, and tests can
+reuse the same route validity, novelty, and geometry calculations.
+"""
 from __future__ import annotations
 
 import re
@@ -11,10 +17,12 @@ from .tokenization import parse_tokens, tokens_to_hold_records
 
 
 def parse_token_list(value) -> list[str]:
+    """Compatibility wrapper around the shared token parser."""
     return parse_tokens(value)
 
 
 def validity_from_records(records: list[dict[str, object]], requested_board_prefix: str | None = None) -> dict[str, object]:
+    """Compute evaluation-specific route-validity flags from hold records."""
     placements = [int(record["placement_id"]) for record in records]
     roles = [str(record["role"]) for record in records]
     prefixes = [str(record["board_token_prefix"]) for record in records]
@@ -51,16 +59,19 @@ def validity_from_records(records: list[dict[str, object]], requested_board_pref
 
 
 def frames_to_holds(frames: str | None) -> list[tuple[int, int]]:
+    """Parse a frames string into ``(placement_id, role_id)`` pairs."""
     if not isinstance(frames, str):
         return []
     return [(int(p), int(r)) for p, r in re.findall(r"p(\d+)r(\d+)", frames)]
 
 
 def holds_to_placement_set(holds: Iterable[tuple[int, int]]) -> frozenset[int]:
+    """Drop role IDs and represent a route by its unique placement IDs."""
     return frozenset(int(placement_id) for placement_id, _ in holds)
 
 
 def jaccard(a: frozenset[int], b: frozenset[int]) -> float:
+    """Return Jaccard similarity between two placement sets."""
     if not a and not b:
         return 1.0
     if not a or not b:
@@ -73,6 +84,7 @@ def nearest_real_route_same_board(
     generated_board_key: str,
     real_df: pd.DataFrame,
 ) -> dict[str, object]:
+    """Find the most similar real route on the same board by Jaccard score."""
     board_frame = real_df[real_df["board_key"] == generated_board_key]
     if board_frame.empty:
         return {
@@ -100,6 +112,7 @@ def nearest_real_route_same_board(
 
 
 def build_placement_coords(df_token_meta: pd.DataFrame) -> dict[tuple[str, int], dict[str, float]]:
+    """Build a placement-coordinate lookup from token metadata."""
     hold_meta = df_token_meta[df_token_meta["kind"] == "hold"].dropna(subset=["placement_id"]).copy()
     coords = {}
     for _, row in hold_meta.drop_duplicates(["board_key", "placement_id"]).iterrows():
@@ -116,6 +129,12 @@ def simple_route_features(
     records: list[dict[str, object]],
     placement_coords: dict[tuple[str, int], dict[str, float]],
 ) -> dict[str, float]:
+    """Compute simple geometric route features from hold coordinates.
+
+    These features are descriptive rather than a full climbing-physics model:
+    height/width describe route spread, and hand-reach distances summarize the
+    pairwise spacing among start/middle/finish holds.
+    """
     rows = []
     for record in records:
         key = (str(board_key), int(record["placement_id"]))

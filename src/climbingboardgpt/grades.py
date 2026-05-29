@@ -1,5 +1,8 @@
+"""Grade-scale helpers for BoardLib display difficulty and grouped V grades."""
 from __future__ import annotations
 
+# BoardLib display difficulties are integer-like values. This project groups
+# them into V grades so TB2 and Kilter can share a compact grade-token space.
 GRADE_TO_V = {
     10: 0, 11: 0, 12: 0,
     13: 1, 14: 1,
@@ -22,10 +25,12 @@ GRADE_TO_V = {
 
 
 def to_grouped_v(display_difficulty: float) -> int:
+    """Map a continuous display difficulty to the nearest grouped V grade."""
     rounded = int(round(float(display_difficulty)))
     rounded = max(min(rounded, max(GRADE_TO_V)), min(GRADE_TO_V))
     return GRADE_TO_V[rounded]
 
 
 def grade_token(display_difficulty: float) -> str:
+    """Return the grade-conditioning token for a display difficulty value."""
     return f"<GRADE_V{to_grouped_v(display_difficulty)}>"

@@ -232,6 +232,30 @@ ClimbingBoardGPT/
 
 ---
 
+## Developer code map
+
+Most reusable behavior lives in `src/climbingboardgpt/`:
+
+| Module | Responsibility |
+|---|---|
+| `config.py` | Board-specific JSON config loading and role mappings |
+| `data.py` | SQLite queries and board data loading |
+| `tokenization.py` | Frames parsing, canonical route ordering, token grammar, vocabulary, token metadata |
+| `datasets.py` | PyTorch dataset adapters for grade prediction and GPT training |
+| `models.py` | Transformer encoder regressor and GPT-style route generator |
+| `generation.py` | Prompt construction, top-k sampling, generated-route validity, frames reconstruction |
+| `inference.py` | Checkpoint loading and demo/webapp inference helpers |
+| `evaluation.py` | Validity, novelty, nearest-route, and geometry metrics for generated climbs |
+| `visualization.py` | Matplotlib board overlays and calibrated board canvases |
+| `metrics.py`, `grades.py`, `utils.py` | Shared grade mapping, reporting metrics, JSON/split/reproducibility helpers |
+
+The numbered scripts are the pipeline entry points. The `webapp/` directory is
+the inference-only FastAPI demo plus the browser-side SVG route builder. The
+notebooks document the executed analysis runs; the maintained importable code is
+the package and scripts above.
+
+---
+
 ## Setup
 
 Create and activate a virtual environment:

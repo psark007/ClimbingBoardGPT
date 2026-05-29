@@ -1,3 +1,11 @@
+/*
+ * Browser-side controller for the ClimbingBoardGPT demo.
+ *
+ * The server returns route tokens, board coordinates, and canvas metadata as
+ * JSON. This file keeps the current UI state, draws holds as SVG markers over
+ * the board image, and serializes clicked holds back into frames strings for
+ * grade prediction.
+ */
 const state = {
   boards: {},
   boardHolds: {},
@@ -6,6 +14,8 @@ const state = {
   builder: [],
 };
 
+// Marker styles are expressed in board-coordinate units because the SVG viewBox
+// is calibrated to the same coordinate system as token_metadata.csv.
 const roleStyle = {
   start: { fill: "#69f0ae", stroke: "#102022", r: 1.55, shape: "circle" },
   middle: { fill: "#82b1ff", stroke: "#102022", r: 1.55, shape: "circle" },
@@ -14,6 +24,8 @@ const roleStyle = {
   unknown: { fill: "#b0bec5", stroke: "#102022", r: 1.45, shape: "circle" },
 };
 
+// The builder uses brighter styling than generated routes so edited holds stand
+// out after a user clicks or removes placements.
 const builderStyle = {
   start: { fill: "#00e676", stroke: "#000000", r: 1.85, shape: "circle" },
   middle: { fill: "#448aff", stroke: "#000000", r: 1.85, shape: "circle" },
@@ -22,10 +34,12 @@ const builderStyle = {
   unknown: { fill: "#cfd8dc", stroke: "#000000", r: 1.85, shape: "circle" },
 };
 
+/** Return an element by ID. */
 function $(id) {
   return document.getElementById(id);
 }
 
+/** Fetch JSON and normalize FastAPI/Pydantic errors into readable exceptions. */
 async function fetchJson(url, options = {}) {
   const response = await fetch(url, options);
   const text = await response.text();
@@ -50,11 +64,13 @@ async function fetchJson(url, options = {}) {
   return payload;
 }
 
+/** Toggle a button's disabled state and working label. */
 function setBusy(button, busy) {
   button.disabled = busy;
   button.textContent = busy ? "Working…" : button.dataset.label;
 }
 
+/** Load and cache the clickable hold coordinate list for a board. */
 async function ensureBoardHolds(boardKey) {
   if (!state.boardHolds[boardKey]) {
     const payload = await fetchJson(`/api/board-holds/${boardKey}`);
@@ -63,6 +79,7 @@ async function ensureBoardHolds(boardKey) {
   return state.boardHolds[boardKey];
 }
 
+/** Switch the displayed board image and overlay coordinate system. */
 async function setBoardBackground(boardKey) {
   const board = state.boards[boardKey];
   if (!board) return;
@@ -85,6 +102,7 @@ async function setBoardBackground(boardKey) {
 
 
 
+/** Pick a sensible angle for the active board when the current value is absent. */
 function preferredAngleForBoard(boardKey, currentValue = null) {
   const board = state.boards[boardKey] || {};
   const angles = board.available_angles || [];
@@ -96,6 +114,7 @@ function preferredAngleForBoard(boardKey, currentValue = null) {
   return 40;
 }
 
+/** Rebuild an angle select using angles available in the processed dataset. */
 function populateAngleSelect(selectId, boardKey, selectedValue = null) {
   const select = $(selectId);
   if (!select) return;
@@ -116,6 +135,7 @@ function populateAngleSelect(selectId, boardKey, selectedValue = null) {
   }
 }
 
+/** Keep generation and prediction angle selectors in sync. */
 function syncAngleSelectors(angleValue = null) {
   const boardKey = state.activeBoard || $("gen-board")?.value || $("pred-board")?.value || "tb2";
   const selected = preferredAngleForBoard(boardKey, angleValue ?? $("gen-angle")?.value ?? $("pred-angle")?.value);
@@ -130,6 +150,7 @@ function syncAngleSelectors(angleValue = null) {
 }
 
 
+/** Pick a sensible grade for the active board when the current value is absent. */
 function preferredGradeForBoard(boardKey, currentValue = null) {
   const board = state.boards[boardKey] || {};
   const grades = board.available_grades || Array.from({ length: 16 }, (_, i) => i);
@@ -141,6 +162,7 @@ function preferredGradeForBoard(boardKey, currentValue = null) {
   return 6;
 }
 
+/** Rebuild a grade select using grades available in the processed dataset. */
 function populateGradeSelect(selectId, boardKey, selectedValue = null) {
   const select = $(selectId);
   if (!select) return;
@@ -161,6 +183,7 @@ function populateGradeSelect(selectId, boardKey, selectedValue = null) {
   }
 }
 
+/** Keep the generation grade selector valid for the active board. */
 function syncGradeSelector(gradeValue = null) {
   const boardKey = state.activeBoard || $("gen-board")?.value || "tb2";
   const selected = preferredGradeForBoard(boardKey, gradeValue ?? $("gen-grade")?.value);
@@ -170,6 +193,7 @@ function syncGradeSelector(gradeValue = null) {
   if (genGrade) genGrade.value = String(selected);
 }
 
+/** Mirror the active board between generation and prediction controls. */
 function syncBoardSelectors(boardKey) {
   const genBoard = $("gen-board");
   const predBoard = $("pred-board");
@@ -177,6 +201,7 @@ function syncBoardSelectors(boardKey) {
   if (predBoard && predBoard.value !== boardKey) predBoard.value = boardKey;
 }
 
+/** Replace the editable builder state with holds from an API result. */
 function setBuilderFromRouteResult(result) {
   const board = result.board_key;
   state.builder = (result.holds || []).map((hold) => ({
@@ -189,6 +214,7 @@ function setBuilderFromRouteResult(result) {
   syncBuilderToFrames();
 }
 
+/** Summarize the active board's edited route for headers and validation hints. */
 function activeBuilderSummary() {
   const board = $("pred-board")?.value || state.activeBoard;
   const holds = state.builder.filter((hold) => hold.board === board);
@@ -197,6 +223,7 @@ function activeBuilderSummary() {
   return { holds, starts, finishes };
 }
 
+/** Show an editable-route status message while the user is clicking holds. */
 function updateEditingHeader(prefix = "Editing climb") {
   const summary = activeBuilderSummary();
   const frameText = $("pred-frames")?.value?.trim() || "";
@@ -214,10 +241,12 @@ function updateEditingHeader(prefix = "Editing climb") {
   }, null, 2);
 }
 
+/** Remove all SVG children from the overlay. */
 function clearOverlay() {
   $("overlay").innerHTML = "";
 }
 
+/** Create an SVG element with a simple attribute object. */
 function svgEl(name, attrs = {}) {
   const el = document.createElementNS("http://www.w3.org/2000/svg", name);
   for (const [key, value] of Object.entries(attrs)) {
@@ -226,6 +255,7 @@ function svgEl(name, attrs = {}) {
   return el;
 }
 
+/** Return polygon points for the finish-hold star marker. */
 function starPoints(cx, cy, outerR, innerR, n = 5) {
   const points = [];
   for (let i = 0; i < n * 2; i++) {
@@ -236,6 +266,7 @@ function starPoints(cx, cy, outerR, innerR, n = 5) {
   return points.join(" ");
 }
 
+/** Draw one route or builder marker into a transformed SVG group. */
 function drawMarker(group, hold, style, className = "route-marker") {
   if (style.shape === "square") {
     const s = style.r * 2;
@@ -274,6 +305,7 @@ function drawMarker(group, hold, style, className = "route-marker") {
   }
 }
 
+/** Return a group that flips board coordinates into image/SVG screen space. */
 function transformedGroup(resultOrBoardKey) {
   const boardKey = typeof resultOrBoardKey === "string" ? resultOrBoardKey : resultOrBoardKey.board_key;
   const board = state.boards[boardKey];
@@ -283,6 +315,7 @@ function transformedGroup(resultOrBoardKey) {
   });
 }
 
+/** Draw transparent click targets over every known hold on the active board. */
 function drawSelectableTargets(boardKey, group) {
   const holds = state.boardHolds[boardKey] || [];
   for (const hold of holds) {
@@ -321,6 +354,7 @@ function drawSelectableTargets(boardKey, group) {
   }
 }
 
+/** Render an API result and make it editable through the route builder. */
 function drawOverlay(result) {
   state.lastResult = result;
   syncBoardSelectors(result.board_key);
@@ -329,6 +363,7 @@ function drawOverlay(result) {
   redrawCurrentOverlay();
 }
 
+/** Redraw builder markers and click targets from the current state. */
 function redrawCurrentOverlay() {
   const svg = $("overlay");
   svg.innerHTML = "";
@@ -348,24 +383,29 @@ function redrawCurrentOverlay() {
 
 
 
+/** Find the selected builder hold index for a board placement. */
 function findBuilderHoldIndex(board, placementId) {
   return state.builder.findIndex(
     (hold) => hold.board === board && Number(hold.placement_id) === Number(placementId)
   );
 }
 
+/** Return true when a board placement is already present in the builder. */
 function isBuilderHoldSelected(board, placementId) {
   return findBuilderHoldIndex(board, placementId) >= 0;
 }
 
+/** Return builder holds belonging to the currently displayed board. */
 function activeBuilderHolds() {
   return state.builder.filter((hold) => hold.board === state.activeBoard);
 }
 
+/** Count a role among builder holds on the currently displayed board. */
 function roleCountForActiveBoard(role) {
   return activeBuilderHolds().filter((hold) => hold.role === role).length;
 }
 
+/** Enforce the same start/finish limits used by the web API. */
 function canAddBuilderRole(role) {
   if ((role === "start" || role === "finish") && roleCountForActiveBoard(role) >= 2) {
     showWarnings([
@@ -376,6 +416,7 @@ function canAddBuilderRole(role) {
   return true;
 }
 
+/** Convert the builder route into a frames string. */
 function frameStringForBuilder() {
   const board = state.boards[$("pred-board").value];
   if (!board) return "";
@@ -386,6 +427,7 @@ function frameStringForBuilder() {
     .join("");
 }
 
+/** Update the frames textarea and selected-hold list from builder state. */
 function syncBuilderToFrames() {
   $("pred-frames").value = frameStringForBuilder();
   const list = $("builder-list");
@@ -400,6 +442,7 @@ function syncBuilderToFrames() {
   updatePredictButton();
 }
 
+/** Add or remove a clicked hold, using the currently selected semantic role. */
 function addBuilderHold(hold) {
   const board = $("pred-board").value;
   const role = $("click-role").value;
@@ -435,6 +478,7 @@ function addBuilderHold(hold) {
   updateEditingHeader("Editing generated / clicked climb");
 }
 
+/** Remove the most recently added hold for the selected prediction board. */
 function undoBuilderHold() {
   const board = $("pred-board").value;
   for (let i = state.builder.length - 1; i >= 0; i--) {
@@ -448,11 +492,13 @@ function undoBuilderHold() {
   updateEditingHeader("Editing generated / clicked climb");
 }
 
+/** Backward-compatible clear handler retained for older markup. */
 function clearBuilder() {
   clearEntireBoard();
 }
 
 
+/** Show warning text in the dedicated box, falling back to the subtitle. */
 function showWarnings(warnings = []) {
   const box = $("warning-box");
   const normalized = (warnings || []).filter(Boolean).map(String);
@@ -475,6 +521,7 @@ function showWarnings(warnings = []) {
 }
 
 
+/** Clear builder state without changing result headers or overlay background. */
 function clearClickedHoldsOnly() {
   state.builder = [];
   const frames = $("pred-frames");
@@ -484,11 +531,13 @@ function clearClickedHoldsOnly() {
   updatePredictButton();
 }
 
+/** Public clear action for both clear buttons. */
 function clearBoard() {
   clearEntireBoard();
 }
 
 
+/** Enable prediction only when a frames string is available. */
 function updatePredictButton() {
   const button = $("predict-btn");
   if (!button) return;
@@ -501,6 +550,7 @@ function updatePredictButton() {
     : "Paste a frames string or click holds on the board first.";
 }
 
+/** Reset route, raw JSON, warnings, and overlay markers for the current board. */
 function clearEntireBoard() {
   state.lastResult = null;
   state.builder = [];
@@ -517,6 +567,7 @@ function clearEntireBoard() {
 }
 
 
+/** Format exact-match known-climb metadata for the result subtitle. */
 function knownClimbSummary(result) {
   const known = result.known_climb;
   if (!known || !known.checked) return null;
@@ -528,6 +579,7 @@ function knownClimbSummary(result) {
   return `known climb: ${name} (${grade}); ${known.match_count} matching route-angle entr${known.match_count === 1 ? "y" : "ies"}`;
 }
 
+/** Render human-readable result text and raw JSON for an API response. */
 function summarizeResult(result, mode) {
   if (mode === "generate") {
     const pieces = [
@@ -561,6 +613,7 @@ function summarizeResult(result, mode) {
 }
 
 
+/** Convert structured API error JSON into a compact warning message. */
 function formatErrorMessage(message) {
   if (!message) return "Unknown error.";
   try {
@@ -577,6 +630,7 @@ function formatErrorMessage(message) {
   }
 }
 
+/** Submit a generation request and render the sampled route. */
 async function generate() {
   const button = $("generate-btn");
   setBusy(button, true);
@@ -603,6 +657,7 @@ async function generate() {
   }
 }
 
+/** Submit a grade-prediction request for the current frames string. */
 async function predict() {
   const button = $("predict-btn");
   const frames = $("pred-frames").value.trim();
@@ -635,6 +690,7 @@ async function predict() {
 }
 
 
+/** Attach a listener only when optional markup exists. */
 function addListenerIfPresent(id, eventName, handler) {
   const element = $(id);
   if (!element) {
@@ -644,6 +700,7 @@ function addListenerIfPresent(id, eventName, handler) {
   element.addEventListener(eventName, handler);
 }
 
+/** Initialize server state, controls, board background, and event listeners. */
 async function init() {
   $("generate-btn").dataset.label = "Generate";
   $("predict-btn").dataset.label = "Predict pasted / clicked climb";

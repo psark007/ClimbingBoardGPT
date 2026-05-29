@@ -98,6 +98,7 @@ def board_canvas_settings(board_key: str, df_token_meta: pd.DataFrame | None = N
 
 
 def _board_holds(df_token_meta: pd.DataFrame, board_key: str) -> pd.DataFrame:
+    """Return one metadata row per plotted hold for a board."""
     holds = df_token_meta[
         (df_token_meta["kind"] == "hold")
         & (df_token_meta["board_key"].astype(str) == str(board_key))
@@ -118,6 +119,7 @@ def _route_with_coords(
     df_token_meta: pd.DataFrame,
     board_key: str,
 ) -> pd.DataFrame:
+    """Attach x/y coordinates to route hold records using token metadata."""
     holds = _board_holds(df_token_meta, board_key)
     coords = holds[["board_key", "board_token_prefix", "placement_id", "x", "y"]].drop_duplicates(
         ["board_key", "placement_id"]

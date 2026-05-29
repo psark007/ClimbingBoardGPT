@@ -46,6 +46,7 @@ from climbingboardgpt.visualization import load_token_metadata, visualize_route_
 
 
 def default_background_for_board(board: str) -> Path | None:
+    """Return the bundled board image path for a board when it exists."""
     candidates = {
         "tb2": REPO_ROOT / "images" / "tb2_board_12x12_composite.png",
         "kilter": REPO_ROOT / "images" / "kilter-original-16x12_composite.png",
@@ -55,6 +56,7 @@ def default_background_for_board(board: str) -> Path | None:
 
 
 def parse_args() -> argparse.Namespace:
+    """Parse board, frames, model, and optional visualization settings."""
     parser = argparse.ArgumentParser(
         description="Predict climb grade from board, angle, and frames string.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
@@ -99,6 +101,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> None:
+    """Predict a frames string's grade and optionally save a route overlay."""
     args = parse_args()
 
     board_config = load_board_for_demo(args.board, config_dir=REPO_ROOT / "configs")

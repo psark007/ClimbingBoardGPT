@@ -23,6 +23,8 @@ from climbingboardgpt.tokenization import (
 
 
 class CoreBehaviorTest(unittest.TestCase):
+    """Smoke tests for token grammar, validity checks, and route matching."""
+
     def test_to_grouped_v_clamps_and_maps_display_difficulty(self):
         self.assertEqual(to_grouped_v(10), 0)
         self.assertEqual(to_grouped_v(22), 6)

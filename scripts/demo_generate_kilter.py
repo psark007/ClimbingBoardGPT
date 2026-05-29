@@ -9,6 +9,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 if __name__ == "__main__":
+    # Delegate to the generic demo so board-specific wrappers stay tiny.
     cmd = [
         sys.executable,
         str(REPO_ROOT / "scripts" / "demo_generate_and_visualize.py"),

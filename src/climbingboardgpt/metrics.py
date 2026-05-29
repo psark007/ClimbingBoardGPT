@@ -1,3 +1,4 @@
+"""Metrics used to evaluate continuous grade predictions."""
 from __future__ import annotations
 
 import math
@@ -10,6 +11,7 @@ from .grades import to_grouped_v
 
 
 def regression_metrics(y_true, y_pred) -> dict[str, float]:
+    """Compute difficulty-scale and grouped-V-grade prediction metrics."""
     y_true = np.asarray(y_true)
     y_pred = np.asarray(y_pred)
     true_v = np.asarray([to_grouped_v(x) for x in y_true])
@@ -28,6 +30,7 @@ def regression_metrics(y_true, y_pred) -> dict[str, float]:
 
 
 def metrics_by_board(pred_df: pd.DataFrame) -> pd.DataFrame:
+    """Compute regression metrics separately for each board in a prediction table."""
     rows = []
     for board_key, frame in pred_df.groupby("board_key"):
         metrics = regression_metrics(frame["y_true"].values, frame["y_pred"].values)
@@ -36,6 +39,7 @@ def metrics_by_board(pred_df: pd.DataFrame) -> pd.DataFrame:
 
 
 def print_metrics(name: str, metrics: dict[str, float]) -> None:
+    """Pretty-print a metric dictionary in the training scripts."""
     print(name)
     print("-" * len(name))
     for key, value in metrics.items():

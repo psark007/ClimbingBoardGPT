@@ -41,6 +41,7 @@ from climbingboardgpt.visualization import load_token_metadata, visualize_route_
 
 
 def parse_args() -> argparse.Namespace:
+    """Parse generation, scoring, and visualization options."""
     parser = argparse.ArgumentParser(
         description="Generate ClimbingBoardGPT routes and save route visualizations.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
@@ -96,6 +97,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def default_background_for_board(board: str) -> Path | None:
+    """Return the bundled board image path for a board when it exists."""
     candidates = {
         "tb2": REPO_ROOT / "images" / "tb2_board_12x12_composite.png",
         "kilter": REPO_ROOT / "images" / "kilter-original-16x12_composite.png",
@@ -105,6 +107,7 @@ def default_background_for_board(board: str) -> Path | None:
 
 
 def main() -> None:
+    """Generate routes, optionally score them, and save images plus a CSV."""
     args = parse_args()
 
     board_config = load_board_for_demo(args.board, config_dir=REPO_ROOT / "configs")

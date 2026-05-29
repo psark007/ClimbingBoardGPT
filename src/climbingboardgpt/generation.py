@@ -1,3 +1,4 @@
+"""Sampling and structural-validity helpers for route generation."""
 from __future__ import annotations
 
 from typing import Iterable
@@ -9,6 +10,7 @@ from .tokenization import tokens_to_hold_records
 
 
 def top_k_filter(logits: torch.Tensor, k: int | None) -> torch.Tensor:
+    """Mask logits outside the top ``k`` choices for each batch row."""
     if k is None or k <= 0 or k >= logits.size(-1):
         return logits
     values, _ = torch.topk(logits, k)
@@ -27,6 +29,11 @@ def sample_ids(
     eos_id: int | None = None,
     forbidden_ids: Iterable[int] | None = None,
 ) -> list[int]:
+    """Autoregressively sample token IDs from a trained route generator.
+
+    The returned list includes the prompt IDs and all sampled IDs up to either
+    ``max_new_tokens`` or the first sampled ``eos_id``.
+    """
     model.eval()
     sequence = torch.tensor([prompt_ids], dtype=torch.long, device=device)
     forbidden_ids = set(forbidden_ids or [])
@@ -36,6 +43,8 @@ def sample_ids(
         logits, _ = model(idx_cond)
         logits = logits[:, -1, :] / max(temperature, 1e-6)
 
+        # Special tokens like <PAD> and <CLS> are valid vocabulary entries but
+        # should never be emitted in the middle of a generated climb.
         for token_id in forbidden_ids:
             logits[:, int(token_id)] = -float("inf")
 
@@ -51,6 +60,7 @@ def sample_ids(
 
 
 def prompt_tokens(board_prefix: str, angle: int, grouped_v: int) -> list[str]:
+    """Build the conditioning prefix used before sampling hold tokens."""
     return [
         "<BOS>",
         f"<BOARD_{board_prefix}>",
@@ -60,10 +70,12 @@ def prompt_tokens(board_prefix: str, angle: int, grouped_v: int) -> list[str]:
 
 
 def hold_records(tokens: Iterable[str]) -> list[dict[str, object]]:
+    """Extract hold records from generated tokens."""
     return tokens_to_hold_records(tokens)
 
 
 def validity_summary(tokens: Iterable[str], requested_board_prefix: str | None = None) -> dict[str, object]:
+    """Summarize basic structural validity for generated token sequences."""
     records = hold_records(tokens)
     placements = [record["placement_id"] for record in records]
     roles = [record["role"] for record in records]
@@ -94,6 +106,11 @@ def validity_summary(tokens: Iterable[str], requested_board_prefix: str | None =
 
 
 def generated_tokens_to_frames(tokens: Iterable[str], role_name_to_id: dict[str, int], board_prefix: str | None = None) -> str:
+    """Convert generated hold tokens back into a frames string.
+
+    Duplicate placements and unknown roles are skipped, matching the forgiving
+    cleanup used by the demo scripts and webapp.
+    """
     pieces = []
     seen = set()
     for record in hold_records(tokens):
@@ -121,6 +138,7 @@ def generate_one(
     top_k: int | None = 50,
     max_new_tokens: int = 40,
 ) -> dict[str, object]:
+    """Generate one route and return tokens, frames, request metadata, validity."""
     unk_id = stoi["<UNK>"]
     eos_id = stoi["<EOS>"]
     forbidden_ids = [
