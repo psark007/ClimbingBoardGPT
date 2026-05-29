@@ -794,9 +794,13 @@ Example prediction payload:
 - Board-size-specific generation is a planned future extension. For now, the demo uses the full TB2 12x12 and Kilter 16x12-style background images and placement sets.
 - "No Match" token and "No Match" options in the demo. 
 
+## References and acknowledgements
 
+The route generator is a small GPT-style causal transformer inspired by Andrej Karpathy's [`nanoGPT`](https://github.com/karpathy/nanoGPT), a compact reference implementation for training GPT models.
+
+Board layouts, hold metadata, and route data are derived from [`Tension Board 2`](https://tensionclimbing.com/products/tension-board-2) and [`Kilter Board`](https://settercloset.com/collections/kilter-board) datasets. This project is unaffiliated with [`Tension Climbing`](https://tensionclimbing.com/) or [`Kilter`](https://settercloset.com/collections/kilter-board).
 
 # License
 This project is licensed under the MIT License. See the [`LICENSE`](LICENSE) file for details.
 
-The project is for educational purposes. Climb data belongs to Tension Climbing and Kilter respectively.
+The project is for educational purposes.

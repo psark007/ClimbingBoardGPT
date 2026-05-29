@@ -407,3 +407,11 @@ button.secondary:hover {
   font-size: 0.8rem;
   line-height: 1.45;
 }
+
+#data-acknowledgement-card a {
+  color: var(--link);
+}
+
+#data-acknowledgement-card a:hover {
+  color: var(--hover);
+}
