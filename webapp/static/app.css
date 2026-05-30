@@ -410,8 +410,10 @@ button.secondary:hover {
 
 #data-acknowledgement-card a {
   color: var(--link);
+  text-decoration: none;
 }
 
 #data-acknowledgement-card a:hover {
   color: var(--hover);
+  text-decoration: underline;
 }
