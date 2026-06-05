@@ -690,6 +690,16 @@ async function predict() {
 }
 
 
+/** Initialize collapsible cards: clicking the h2 toggles the .collapsed class. */
+function initCollapsibleCards() {
+  document.querySelectorAll(".card.collapsible > h2").forEach((heading) => {
+    const card = heading.parentElement;
+    heading.addEventListener("click", () => {
+      card.classList.toggle("collapsed");
+    });
+  });
+}
+
 /** Attach a listener only when optional markup exists. */
 function addListenerIfPresent(id, eventName, handler) {
   const element = $(id);
@@ -716,6 +726,8 @@ async function init() {
   await ensureBoardHolds("tb2");
   await setBoardBackground("tb2");
   syncAngleSelectors(40);
+
+  initCollapsibleCards();
 
   addListenerIfPresent("gen-board", "change", async (e) => {
     syncBoardSelectors(e.target.value);

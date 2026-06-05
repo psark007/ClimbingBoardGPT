@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import hashlib
 import os
+import re
 import sys
 import time
 from contextlib import asynccontextmanager
@@ -23,7 +24,7 @@ from typing import Any
 import pandas as pd
 import torch
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -58,6 +59,7 @@ KNOWN_ROUTES_PATH = Path(
     os.getenv("CBGPT_KNOWN_ROUTES_PATH", TOKENIZED_DIR / "route_sequences.csv")
 )
 
+STATIC_DIR = REPO_ROOT / "webapp" / "static"
 GENERATOR_PATH = MODEL_DIR / "joint_route_gpt_generator.pth"
 GRADE_MODEL_PATH = MODEL_DIR / "joint_transformer_grade_predictor.pth"
 
@@ -547,8 +549,13 @@ app.mount("/board-images", StaticFiles(directory=REPO_ROOT / "images"), name="bo
 
 @app.get("/")
 def index():
-    """Serve the single-page web UI."""
-    return FileResponse(REPO_ROOT / "webapp" / "static" / "index.html")
+    """Serve the single-page web UI with auto-versioned static asset URLs."""
+    html = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
+    css_v = _file_version(STATIC_DIR / "app.css")
+    js_v = _file_version(STATIC_DIR / "app.js")
+    html = re.sub(r'app\.css\?v=[^\s"\']+', f"app.css?v={css_v}", html)
+    html = re.sub(r'app\.js\?v=[^\s"\']+', f"app.js?v={js_v}", html)
+    return HTMLResponse(content=html)
 
 
 @app.get("/api/health")

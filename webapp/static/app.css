@@ -86,11 +86,18 @@ body {
 .layout {
   display: grid;
   grid-template-columns: 22rem minmax(0, 1fr);
+  grid-template-rows: auto 1fr;
+  grid-template-areas:
+    "col-top   col-viewer"
+    "col-info  col-viewer";
   gap: 2rem;
   padding: 2rem 1rem 1rem;
   max-width: 78rem;
   margin: 0 auto;
 }
+#col-top    { grid-area: col-top; }
+#col-viewer { grid-area: col-viewer; }
+#col-info   { grid-area: col-info; }
 
 /* Control cards, form fields, and action buttons. */
 .controls {
@@ -179,6 +186,32 @@ button.secondary:hover {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 0.55rem;
+}
+
+/* Collapsible cards: clicking the h2 toggles visibility of card body.
+   Only cards with class .collapsible get this behavior. */
+.card.collapsible > h2 {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  user-select: none;
+}
+.card.collapsible > h2::after {
+  content: "▾";
+  font-size: 2rem;
+  color: var(--muted);
+  margin-left: auto;
+  padding-left: 0.5rem;
+  flex-shrink: 0;
+}
+.card.collapsible.collapsed > h2::after {
+  content: "▸";
+}
+.card.collapsible > h2:hover::after {
+  color: var(--off-fg);
+}
+.card.collapsible.collapsed > *:not(h2) {
+  display: none;
 }
 
 .note p, .small {
@@ -284,9 +317,16 @@ button.secondary:hover {
   font-size: 0.76rem;
 }
 
-/* Stack controls above the board on narrower screens. */
+/* On narrower screens, stack controls → viewer → info. */
 @media (max-width: 900px) {
-  .layout { grid-template-columns: 1fr; }
+  .layout {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto auto;
+    grid-template-areas:
+      "col-top"
+      "col-viewer"
+      "col-info";
+  }
   .site-header { flex-direction: column; }
 }
 

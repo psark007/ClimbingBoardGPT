@@ -4,10 +4,9 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>ClimbingBoardGPT</title>
-  <link rel="stylesheet" href="/static/app.css?v=19" />
+  <link rel="stylesheet" href="/static/app.css?v=20" />
 </head>
 <body>
-  <!-- Top-level status: the app script replaces this with model readiness. -->
   <header class="site-header">
     <div>
       <p class="eyebrow">ClimbingBoardGPT</p>
@@ -18,9 +17,9 @@
   </header>
 
   <main class="layout">
-    <!-- Left column: generation controls, prediction controls, and project notes. -->
-    <section class="controls">
-      <div class="card">
+    <!-- Left column, row 1: interactive controls (collapsible). -->
+    <section class="controls" id="col-top">
+      <div class="card collapsible" id="card-gen">
         <h2>Generate a climb</h2>
         <label>Board
           <select id="gen-board">
@@ -41,7 +40,7 @@
         <button id="generate-btn">Generate</button>
       </div>
 
-      <div class="card">
+      <div class="card collapsible" id="card-predict">
         <h2>Predict grade</h2>
         <label>Board
           <select id="pred-board">
@@ -58,7 +57,7 @@
         <button id="predict-btn" disabled>Predict pasted / clicked climb</button>
       </div>
 
-      <div class="card">
+      <div class="card collapsible" id="card-builder">
         <h2>Click holds to build a climb</h2>
         <label>Role for next clicked hold
           <select id="click-role">
@@ -78,80 +77,10 @@
         </p>
         <ul id="builder-list" class="builder-list"></ul>
       </div>
-
-      <div class="card explain" id="explain-card">
-        <h2>What the controls mean</h2>
-        <dl>
-          <dt>Temperature</dt>
-          <dd>Sampling randomness. Lower values are more conservative; higher values are more exploratory.</dd>
-
-          <dt>Target V-grade</dt>
-          <dd>The grade token given to the generator. The generated route is also checked by the grade predictor.</dd>
-
-          <dt>Known climb</dt>
-          <dd>An exact match against the tokenized dataset: same board, same angle, and same hold-role set.</dd>
-
-          <dt>Validity</dt>
-          <dd>A structural check: enough holds, no duplicate placements, at least one start, and at least one finish.</dd>
-        </dl>
-      </div>
-
-      <div class="card note" id="model-disclaimer-card">
-        <h2>Research demo caveat</h2>
-        <p>
-          This is an experimental model demo. Generated climbs and predicted grades may be wrong, especially at rare grades or sparse board/angle combinations.
-        </p>
-      </div>
-
-      <div class="card explain">
-        <h2>How this works</h2>
-        <p>
-          Routes are converted into tokens such as
-          <code>&lt;BOARD_TB2&gt;</code>, <code>&lt;ANGLE_40&gt;</code>,
-          and <code>&lt;TB2_p652_start&gt;</code>.
-        </p>
-        <p>
-          The generator samples a token sequence. The grade predictor removes the grade token and estimates difficulty from the board, angle, and hold-role tokens.
-        </p>
-      </div>
-
-      <div class="card note">
-        <h2>Links</h2>
-        <ul class="link-list">
-          <li><a href="https://pawelsarkowicz.xyz" target="_blank" rel="noreferrer">pawelsarkowicz.xyz</a></li>
-          <li><a href="https://github.com/psark007/ClimbingBoardGPT" target="_blank" rel="noreferrer">ClimbingBoardGPT repo</a></li>
-          <li><a href="https://github.com/psark007/ClimbingBoardGPT/blob/main/LICENSE" target="_blank" rel="noreferrer">License</a></li>
-          <li><a href="https://github.com/psark007/Tension-Board-2-Analysis" target="_blank" rel="noreferrer">Tension Board 2 Analysis repo</a></li>
-          <li><a href="https://github.com/psark007/Kilter-Board-Analysis" target="_blank" rel="noreferrer">Kilter Board Analysis repo</a></li>
-          <li><a href="https://tensionclimbing.com/products/tension-board-2" target="_blank" rel="noreferrer">Tension Board 2</a></li>
-          <li><a href="https://settercloset.com/collections/kilter-board" target="_blank" rel="noreferrer">Kilter Board</a></li>
-          <li><a href="https://github.com/karpathy/nanoGPT" target="_blank" rel="noreferrer">nanoGPT</a></li>
-        </ul>
-      </div>
-
-      <div class="card note" id="angle-scope-card">
-        <h2>Angle scope</h2>
-        <p>
-          The physical boards can be used at steeper angles than this demo exposes. This model snapshot is intentionally restricted to the angle range used in training/evaluation: TB2 up to 50° and Kilter up to 55°.
-        </p>
-        <p>
-          The restriction avoids asking the models to extrapolate into sparse, noisier high-angle data where grades and route distributions are less reliable.
-        </p>
-      </div>
-      
-      <div class="card note" id="data-acknowledgement-card">
-        <h2>Data acknowledgement</h2>
-        <p>
-          Board layouts, hold metadata, and route data are derived from Tension Board 2 and Kilter Board datasets.
-          This project is unaffiliated with Tension Climbing or Kilter.
-          The route generator is inspired by Andrej Karpathy's
-          <a href="https://github.com/karpathy/nanoGPT" target="_blank" rel="noreferrer">nanoGPT</a>.
-        </p>
-      </div>
     </section>
 
     <!-- Right column: generated/predicted route result and SVG board overlay. -->
-    <section class="viewer">
+    <section class="viewer" id="col-viewer">
       <div class="result-card">
         <div class="result-header">
           <h2 id="result-title">Choose a board and run a request</h2>
@@ -175,9 +104,61 @@
         </details>
       </div>
     </section>
+
+    <!-- Left column, row 2: info cards (below board on mobile, left column on desktop). -->
+    <section class="controls" id="col-info">
+      <div class="card explain">
+        <h2>What the controls mean</h2>
+        <dl>
+          <dt>Temperature</dt>
+          <dd>Sampling randomness. Lower values are more conservative; higher values are more exploratory.</dd>
+          <dt>Target V-grade</dt>
+          <dd>The grade token given to the generator. The generated route is also checked by the grade predictor.</dd>
+          <dt>Known climb</dt>
+          <dd>An exact match against the tokenized dataset: same board, same angle, and same hold-role set.</dd>
+          <dt>Validity</dt>
+          <dd>A structural check: enough holds, no duplicate placements, at least one start, and at least one finish.</dd>
+        </dl>
+      </div>
+
+      <div class="card note" id="model-disclaimer-card">
+        <h2>Research demo caveat</h2>
+        <p>This is an experimental model demo. Generated climbs and predicted grades may be wrong, especially at rare grades or sparse board/angle combinations.</p>
+      </div>
+
+      <div class="card explain">
+        <h2>How this works</h2>
+        <p>Routes are converted into tokens such as <code>&lt;BOARD_TB2&gt;</code>, <code>&lt;ANGLE_40&gt;</code>, and <code>&lt;TB2_p652_start&gt;</code>.</p>
+        <p>The generator samples a token sequence. The grade predictor removes the grade token and estimates difficulty from the board, angle, and hold-role tokens.</p>
+      </div>
+
+      <div class="card note">
+        <h2>Links</h2>
+        <ul class="link-list">
+          <li><a href="https://pawelsarkowicz.xyz" target="_blank" rel="noreferrer">pawelsarkowicz.xyz</a></li>
+          <li><a href="https://github.com/psark007/ClimbingBoardGPT" target="_blank" rel="noreferrer">ClimbingBoardGPT repo</a></li>
+          <li><a href="https://github.com/psark007/ClimbingBoardGPT/blob/main/LICENSE" target="_blank" rel="noreferrer">License</a></li>
+          <li><a href="https://github.com/psark007/Tension-Board-2-Analysis" target="_blank" rel="noreferrer">Tension Board 2 Analysis repo</a></li>
+          <li><a href="https://github.com/psark007/Kilter-Board-Analysis" target="_blank" rel="noreferrer">Kilter Board Analysis repo</a></li>
+          <li><a href="https://tensionclimbing.com/products/tension-board-2" target="_blank" rel="noreferrer">Tension Board 2</a></li>
+          <li><a href="https://settercloset.com/collections/kilter-board" target="_blank" rel="noreferrer">Kilter Board</a></li>
+          <li><a href="https://github.com/karpathy/nanoGPT" target="_blank" rel="noreferrer">nanoGPT</a></li>
+        </ul>
+      </div>
+
+      <div class="card note" id="angle-scope-card">
+        <h2>Angle scope</h2>
+        <p>The physical boards can be used at steeper angles than this demo exposes. This model snapshot is intentionally restricted to the angle range used in training/evaluation: TB2 up to 50° and Kilter up to 55°.</p>
+        <p>The restriction avoids asking the models to extrapolate into sparse, noisier high-angle data where grades and route distributions are less reliable.</p>
+      </div>
+
+      <div class="card note" id="data-acknowledgement-card">
+        <h2>Data acknowledgement</h2>
+        <p>Board layouts, hold metadata, and route data are derived from Tension Board 2 and Kilter Board datasets. This project is unaffiliated with Tension Climbing or Kilter. The route generator is inspired by Andrej Karpathy's <a href="https://github.com/karpathy/nanoGPT" target="_blank" rel="noreferrer">nanoGPT</a>.</p>
+      </div>
+    </section>
   </main>
 
-  <!-- External project links and license metadata. -->
   <footer class="site-footer">
     <span>© Pawel Sarkowicz</span>
     <a href="https://pawelsarkowicz.xyz" target="_blank" rel="noreferrer">pawelsarkowicz.xyz</a>
