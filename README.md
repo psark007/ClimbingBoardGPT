@@ -90,13 +90,13 @@ The route generator is a small **GPT-style model** — the same general idea as 
 
 and it predicts what hold token should come next, then the next, then the next, until it produces an `<EOS>` token. The result is a novel sequence of holds that the model thinks is a plausible V6 on the Kilter at 40°.
 
-**~91% of generated routes pass basic structural checks** (has a start hold, has a finish hold, holds exist on the right board, no duplicates).
+**~89% of generated routes pass basic structural checks** (has a start hold, has a finish hold, holds exist on the right board, no duplicates).
 
 ---
 
 ## Quantitative results
 
-These numbers are from the full training run documented by this repository.
+These numbers are from the full training run documented by this repository. The notebooks in `notebooks/` are self-contained walkthroughs of the pipeline stages. The reported pipeline run was executed on Kaggle; notebooks 01-04 took about 8h 1m 59s total using GPU T4 x2.
 
 In practice: the grade model is usually within one V-grade, and the generator usually makes structurally valid routes, but exact grade control is still imperfect.
 
@@ -112,27 +112,27 @@ Shared vocabulary: **4,438 tokens** (6 special + 2 board + 12 angle + 16 grade +
 
 ### Grade prediction accuracy
 
-The model has ~1.17M parameters. Early stopping selected epoch 8 (validation MAE ≈ 1.480).
+The model has ~1.17M parameters. Early stopping selected epoch 11 (validation MAE ≈ 1.488).
 
 | Metric | Overall | TB2 | Kilter |
 |---|---:|---:|---:|
-| Exact V-grade | 36.0% | 37.3% | 35.8% |
-| Within ±1 V-grade | 79.3% | 80.0% | 79.2% |
-| Within ±2 V-grades | 94.8% | 95.5% | 94.7% |
-| R² | 0.768 | 0.800 | 0.763 |
+| Exact V-grade | 35.8% | 35.8% | 35.8% |
+| Within ±1 V-grade | 79.2% | 79.4% | 79.1% |
+| Within ±2 V-grades | 94.9% | 95.5% | 94.8% |
+| R² | 0.763 | 0.793 | 0.758 |
 
 ### Route generation
 
-The generator has ~1.41M parameters. Best validation perplexity: 24.2.
+The generator has ~1.41M parameters. Best validation perplexity: 24.3.
 
 | Metric | TB2 | Kilter |
 |---|---:|---:|
 | Routes evaluated | 200 | 200 |
-| Structurally valid | 89.0% | 94.0% |
-| Exact requested grade (critic) | 29.5% | 27.0% |
-| Within ±1 V-grade (critic) | 68.5% | 73.0% |
-| Within ±2 V-grades (critic) | 90.5% | 93.5% |
-| Mean novelty (Jaccard distance) | 0.656 | 0.634 |
+| Structurally valid | 91.5% | 86.0% |
+| Exact requested grade (critic) | 34.5% | 37.0% |
+| Within ±1 V-grade (critic) | 73.0% | 79.5% |
+| Within ±2 V-grades (critic) | 91.0% | 96.5% |
+| Mean novelty (Jaccard distance) | 0.656 | 0.643 |
 
 ---
 
