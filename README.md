@@ -4,9 +4,11 @@
 
 **ClimbingBoardGPT uses AI to generate new climbing routes and predict their difficulty — for Tension Board 2 and Kilter Board.**
 
+The route generator follows the small causal-transformer recipe from Andrej Karpathy's [nanoGPT](https://github.com/karpathy/nanoGPT): train a model to predict the next token, then sample from it autoregressively. The twist here is that the "language" is made of board, angle, grade, and hold-role tokens instead of text.
+
 You give it a board, a wall angle, and a target grade. It gives you a route. You can also paste in a route you already know, and it will guess the grade.
 
-**[Try it live →](https://cbgpt.pawelsarkowicz.xyz)**
+**[Try it live](https://cbgpt.pawelsarkowicz.xyz)**
 
 ---
 
@@ -387,7 +389,7 @@ This repo is the transformer/GPT follow-up to two earlier analysis projects:
 - [Tension-Board-2-Analysis](https://github.com/psark007/Tension-Board-2-Analysis)
 - [Kilter-Board-Analysis](https://github.com/psark007/Kilter-Board-Analysis)
 
-The route generator architecture is inspired by Andrej Karpathy's [nanoGPT](https://github.com/karpathy/nanoGPT).
+Acknowledgement: the route generator draws on ideas from Andrej Karpathy's [nanoGPT](https://github.com/karpathy/nanoGPT).
 
 Board layouts, hold metadata, and route data are from the [Tension Board 2](https://tensionclimbing.com/products/tension-board-2) and [Kilter Board](https://settercloset.com/collections/kilter-board) apps, loaded via [`BoardLib`](https://github.com/lemeryfertitta/BoardLib). This project is unaffiliated with Tension Climbing or Kilter.
 
