@@ -201,6 +201,26 @@ docker compose -f docker-compose.webapp.yml up -d --build
 
 Binds to `127.0.0.1:8055`.
 
+### With Docker behind a reverse proxy
+
+Use the reverse-proxy compose file when another container, such as Caddy,
+owns the public ports and shares an external Docker network with the webapp.
+The file defaults that external network to `caddy`:
+
+```bash
+docker network create caddy
+docker compose -f docker-compose.webapp.proxy.yml up -d --build
+```
+
+This does not publish a host port. It exposes port `8055` only on the proxy
+network. For Caddy, a site block can reverse proxy to the webapp container:
+
+```caddyfile
+cbgpt.example.com {
+    reverse_proxy climbingboardgpt-webapp:8055
+}
+```
+
 ---
 
 ## CLI demos
@@ -387,6 +407,7 @@ ClimbingBoardGPT/
 ├── tests/            Unit tests
 ├── webapp/           FastAPI server + browser-side SVG route builder
 ├── docker-compose.webapp.yml
+├── docker-compose.webapp.proxy.yml
 ├── requirements.txt
 └── pyproject.toml
 ```

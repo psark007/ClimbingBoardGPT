@@ -1,0 +1,24 @@
+services:
+  climbingboardgpt-webapp:
+    build:
+      context: .
+      dockerfile: webapp/Dockerfile
+    container_name: climbingboardgpt-webapp
+    restart: unless-stopped
+    expose:
+      - "8055"
+    environment:
+      CBGPT_DEVICE: "cpu"
+      CBGPT_TORCH_THREADS: "1"
+    volumes:
+      - ./models:/app/models:ro
+      - ./data/processed/tokenized:/app/data/processed/tokenized:ro
+      - ./images:/app/images:ro
+      - ./webapp:/app/webapp:ro
+    networks:
+      - proxy
+
+networks:
+  proxy:
+    external: true
+    name: caddy
