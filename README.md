@@ -12,9 +12,29 @@ You give it a board, a wall angle, and a target grade. It gives you a route. You
 
 ---
 
+## Table of contents
+
+- [What is this, exactly?](#what-is-this-exactly)
+- [What are Tension Board 2 and Kilter Board?](#what-are-tension-board-2-and-kilter-board)
+- [What can it do?](#what-can-it-do)
+- [Try it — no setup needed](#try-it--no-setup-needed)
+- [How it works (plain-English version)](#how-it-works-plain-english-version)
+- [Quantitative results](#quantitative-results)
+- [Setup](#setup)
+- [Run the web demo locally](#run-the-web-demo-locally)
+- [CLI demos](#cli-demos)
+- [Full training pipeline](#full-training-pipeline)
+- [API endpoints (for the webapp)](#api-endpoints-for-the-webapp)
+- [Repository layout](#repository-layout)
+- [Important caveats](#important-caveats)
+- [Background and related work](#background-and-related-work)
+- [License](#license)
+
+---
+
 ## What is this, exactly?
 
-If you've climbed on a **Tension Board 2 (TB2)** or a **Kilter Board**, you know these are standardised training boards with a fixed set of holds. Routes on these boards are described as a list of holds and their roles (start, foot, hand, finish). The holds are identified by placement ID numbers and the route is stored as a short string like `p652r5p631r6p322r6p326r7`.
+If you've climbed on a **Tension Board 2 (TB2)** or a **Kilter Board**, you know these are standardized training boards with a fixed set of holds. Routes on these boards are described as a list of holds and their roles (start, foot, hand, finish). The holds are identified by placement ID numbers and the route is stored as a short string like `p652r5p631r6p322r6p326r7`.
 
 This project trains two small AI models on hundreds of thousands of real community-set routes from both boards:
 
@@ -29,9 +49,9 @@ The whole thing is small by modern standards (~1.2–1.4M parameters each) and r
 
 ## What are Tension Board 2 and Kilter Board?
 
-**Tension Board 2 (TB2)** is an adjustable training wall made by Tension Climbing. It has a fixed set of holds placed in a regular grid. Climbers set and share routes through a companion app; the community has set tens of thousands of problems. We work with the 12x12ft mirror in this project. 
+**Tension Board 2 (TB2)** is an adjustable training wall made by Tension Climbing. It has a fixed set of holds placed in a regular grid. Climbers set and share routes through a companion app; the community has set tens of thousands of problems. We work with the 12x12 ft mirror in this project.
 
-**Kilter Board** is a similar product from Kilter (Setter Closet). It also has a large library of community-set problems. We work with the 16ftx12ft Kilter original board in this project.
+**Kilter Board** is a similar product from Kilter (Setter Closet). It also has a large library of community-set problems. We work with the 16x12 ft Kilter original board in this project.
 
 Both boards store routes as placement-ID strings. That is what this project trains on.
 
@@ -202,15 +222,6 @@ python scripts/demo_generate_and_visualize.py \
   --temperature 0.9 --top-k 50
 ```
 
-**What does temperature do?**
-
-| Temperature | Effect |
-|---:|---|
-| `0.3`–`0.6` | Conservative — picks safer, more common moves |
-| `0.9` | Balanced default |
-| `1.0` | Samples directly from learned probabilities |
-| `1.1`–`1.3` | More creative — can produce weirder routes |
-
 Generated routes are saved to:
 
 ```
@@ -220,6 +231,29 @@ outputs/demo_routes/<board>/angle_<angle>/V<grade>/
 ├── generated_route_001.svg
 ...
 ```
+
+**What does temperature do?**
+
+| Temperature | Effect |
+|---:|---|
+| `0.3`–`0.6` | Conservative — picks safer, more common moves |
+| `0.9` | Balanced default |
+| `1.0` | Samples directly from learned probabilities |
+| `1.1`–`1.3` | More creative — can produce weirder routes |
+
+**What does top-k do?**
+
+| Top-k | Effect |
+|---:|---|
+| `1` | Greedy — always picks the single most likely token |
+| `5`–`15` | Very focused — limited vocabulary per step |
+| `50` | Balanced default |
+| `200`–`500` | Less restricted — more variety per step |
+
+The two parameters work at different stages of the same step. At each position in the sequence, top-k first discards every token outside the k most likely candidates. Temperature then rescales the probabilities of those remaining candidates before drawing from them. Setting `top_k=1` makes temperature irrelevant — there is only one candidate left. With a larger top-k, temperature controls how evenly spread the draw is: low temperature concentrates weight on the top few candidates, high temperature flattens the distribution toward equal probability across all k.
+
+In short: **top-k controls the breadth of what is considered; temperature controls how adventurously the model picks within that breadth.** The defaults (`top_k=50`, `temperature=0.9`) aim for a balance between variety and structural coherence.
+
 
 ### Predict grade
 

@@ -640,7 +640,7 @@ async function generate() {
       angle: Number($("gen-angle").value),
       grade: Number($("gen-grade").value),
       temperature: Number($("gen-temperature").value),
-      top_k: 50,
+      top_k: Number($("gen-top-k").value),
       max_new_tokens: 40,
     };
     const result = await fetchJson("/api/generate", {

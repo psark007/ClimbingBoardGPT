@@ -362,6 +362,25 @@ button.secondary:hover {
 }
 
 
+.advanced-opts {
+  margin-top: 0.5rem;
+}
+
+.advanced-opts summary {
+  cursor: pointer;
+  font-size: 0.78rem;
+  color: var(--muted);
+  user-select: none;
+}
+
+.advanced-opts summary:hover {
+  color: var(--highlight);
+}
+
+.advanced-opts label {
+  margin-top: 0.6rem;
+}
+
 .field-help {
   display: block;
   margin-top: 0.35rem;
