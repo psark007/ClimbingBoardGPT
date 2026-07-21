@@ -249,23 +249,23 @@ The model has ~1.17M parameters (scalar entries across all parameter tensors). E
 
 | Metric | Overall | TB2 | Kilter |
 |---|---:|---:|---:|
-| Exact V-grade [binned $\hat y$ equals binned $y$] | 35.8% | 35.8% | 35.8% |
-| Within ±1 V-grade [$\|y - \hat y\|_1 \le 1$ after binning] | 79.2% | 79.4% | 79.1% |
-| Within ±2 V-grades [$\|y - \hat y\|_1 \le 2$ after binning] | 94.9% | 95.5% | 94.8% |
-| $R^2$ [fraction of variance explained, $1 - \|y - \hat y\|^2 / \|y - \bar y\,\mathbf{1}\|^2$] | 0.763 | 0.793 | 0.758 |
+| Exact V-grade | 35.8% | 35.8% | 35.8% |
+| Within ±1 V-grade | 79.2% | 79.4% | 79.1% |
+| Within ±2 V-grades | 94.9% | 95.5% | 94.8% |
+| $R^2$  | 0.763 | 0.793 | 0.758 |
 
 ### Route generation
 
-The generator has ~1.41M parameters. Best validation perplexity: 24.3 [$\exp(\mathcal{L}_{\text{CE}})$ — effective vocabulary size per step].
+The generator has ~1.41M parameters. Best validation perplexity: 24.3.
 
 | Metric | TB2 | Kilter |
 |---|---:|---:|
 | Routes evaluated | 200 | 200 |
-| Structurally valid [passes combinatorial checks on the placement set] | 91.5% | 86.0% |
-| Exact requested grade (critic) [predicted grade bin equals requested bin] | 34.5% | 37.0% |
-| Within ±1 V-grade (critic) [$\|\hat y_{\text{critic}} - y_{\text{requested}}\|_1 \le 1$] | 73.0% | 79.5% |
-| Within ±2 V-grades (critic) [$\|\hat y_{\text{critic}} - y_{\text{requested}}\|_1 \le 2$] | 91.0% | 96.5% |
-| Mean novelty (Jaccard distance) [$1 - \langle\mathbf{1}_A, \mathbf{1}_B\rangle / \|\mathbf{1}_A \cup \mathbf{1}_B\|_1$, averaged over routes] | 0.656 | 0.643 |
+| Structurally valid | 91.5% | 86.0% |
+| Exact requested grade (critic) | 34.5% | 37.0% |
+| Within ±1 V-grade (critic) | 73.0% | 79.5% |
+| Within ±2 V-grades (critic) | 91.0% | 96.5% |
+| Mean novelty (Jaccard distance) | 0.656 | 0.643 |
 
 ---
 
@@ -542,8 +542,8 @@ The main package modules:
 
 ## Important caveats
 
-- **Generated routes are machine-made candidates.** Always inspect them before climbing. They are not guaranteed to be safe, fun, or even physically possible.
-- **Grade predictions are estimates, not ground truth.** Climbing grades are subjective, board-style-dependent, and noisy even in the training data.
+- **Generated routes are machine-made candidates.** Use at your own risk. They are not guaranteed to be safe, fun, or even physically possible.
+- **Grade predictions are estimates, not ground truth.** Climbing grades are subjective, board-dependent, and noisy even in the training data.
 - **The hold sequence is a canonical ordering, not intended beta.** The model sorts holds by role and position; this is not necessarily the order you would climb them.
 - **This is a research/hobby project**, not affiliated with Tension Climbing or Kilter/Setter Closet.
 
