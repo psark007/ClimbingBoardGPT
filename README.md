@@ -8,8 +8,6 @@ The route generator follows the small causal-transformer recipe from Andrej Karp
 
 You give it a board, a wall angle, and a target grade. It gives you a route. You can also paste in a route you already know, and it will guess the grade.
 
-**[Try it live](https://cbgpt.pawelsarkowicz.xyz)**
-
 ---
 
 ## Table of contents
@@ -17,8 +15,9 @@ You give it a board, a wall angle, and a target grade. It gives you a route. You
 - [What is this, exactly?](#what-is-this-exactly)
 - [What are Tension Board 2 and Kilter Board?](#what-are-tension-board-2-and-kilter-board)
 - [What can it do?](#what-can-it-do)
-- [Try it — no setup needed](#try-it--no-setup-needed)
-- [How it works (plain-English version)](#how-it-works-plain-english-version)
+- [Try it](#try-it)
+- [How it works](#how-it-works)
+- [Climbing-board ML $\leftrightarrow$ Linear Algebra Dictionary](#climbing-board-ml--linear-algebra-dictionary)
 - [Quantitative results](#quantitative-results)
 - [Setup](#setup)
 - [Run the web demo locally](#run-the-web-demo-locally)
@@ -69,7 +68,7 @@ Both boards store routes as placement-ID strings. That is what this project trai
 
 ---
 
-## Try it — no setup needed
+## Try it
 
 The live demo is at **[cbgpt.pawelsarkowicz.xyz](https://cbgpt.pawelsarkowicz.xyz)**. You can:
 
@@ -78,7 +77,7 @@ The live demo is at **[cbgpt.pawelsarkowicz.xyz](https://cbgpt.pawelsarkowicz.xy
 
 ---
 
-## How it works (plain-English version)
+## How it works
 
 ### Turning a route into text
 
@@ -116,6 +115,118 @@ and it predicts what hold token should come next, then the next, then the next, 
 
 ---
 
+## Climbing-board ML $\leftrightarrow$ Linear Algebra Dictionary
+
+The single most useful thing to keep in mind: **a route is a short sequence of discrete symbols**, and almost every operation in this project is a standard linear-algebra operation on the matrices and vectors built from those symbols.
+
+Each pipeline stage (tokenization, encoder training, generator training, evaluation) has its own table below. The project-wide reference, with the notebook(s) where each term appears, follows.
+
+Notebook numbering: **01** Tokenization · **02** Grade prediction (transformer encoder) · **03** Route generation (GPT-style decoder) · **04** Generated-route evaluation.
+
+### 1. Routes, tokens, and the vocabulary
+
+| Term | Linear-algebra meaning | Notebooks |
+|------|------------------------|:---------:|
+| **Hold** | A discrete symbol drawn from a finite placement set — one element of the board's hold-index set | 01 |
+| **Role** | A label (start, middle, finish, foot) attached to a hold; part of the token's identity, not a separate axis | 01 |
+| **Frames string** | Compact serialization $p\,i_1\,r\,j_1\,p\,i_2\,r\,j_2\cdots$ of a route — the source object before tokenization | 01 |
+| **Route** | An ordered list of $(\text{placement}, \text{role})$ pairs; later mapped to a sequence in $\mathbb{R}^{L\times d}$ | 01 |
+| **Vocabulary** $V$ | The finite symbol set, $\|V\| = 4438$, identified with the standard basis $\{e_1,\dots,e_{\|V\|}\}$ of $\mathbb{R}^{\|V\|}$ | 01 |
+| **`stoi` / `itos`** | The bijection between tokens and basis-vector indices $\{1,\dots,\|V\|\}$ | 01 |
+| **Special tokens** | Distinguished basis vectors ($e_{\text{PAD}}, e_{\text{BOS}}, e_{\text{EOS}}, \dots$) reserved for structural roles | 01 |
+| **Board namespacing** | A direct-sum partition $V = V_{\text{TB2}} \oplus V_{\text{Kilter}} \oplus V_{\text{special}} \oplus \cdots$ so placement IDs cannot collide | 01 |
+| **Encode / decode** | Convert tokens to basis indices and back: $\text{encode}(t) = i$ where $t \equiv e_i$ | 01 |
+| **Canonical ordering** | A fixed sort key on holds (role, $y$, $x$, placement_id) selecting one representative per orbit of the permutation group $S_L$ | 01 |
+| **Grade tokens** | Discrete grade bins $V_0,\dots,V_{16}$ — a 17-symbol sub-vocabulary indexed by `GRADE_TO_V` | 01 |
+| **Train / val / test split** | A partition of the row index set into three disjoint subsets, stratified by board $\times$ grade | 01 |
+
+### 2. Embeddings: discrete tokens → $\mathbb{R}^d$
+
+| Term | Linear-algebra meaning | Notebooks |
+|------|------------------------|:---------:|
+| **One-hot map** $\phi$ | $\phi: V \to \mathbb{R}^{\|V\|}$, $t \mapsto e_t$ — the canonical embedding of a discrete symbol into the standard basis | 01, 02, 03 |
+| **Token embedding matrix** $E$ | Learned linear map $E \in \mathbb{R}^{d\times \|V\|}$; column $i$ is the vector assigned to token $i$ in $\mathbb{R}^d$ (with $d = 128$) | 02, 03 |
+| **Embedding lookup** | The matrix-vector product $E e_t$ — selects column $t$ of $E$ | 02, 03 |
+| **`padding_idx=0`** | Pins column $0$ of $E$ to the zero vector; never updated by gradient descent | 02, 03 |
+| **Position embedding** | A second embedding matrix $E_{\text{pos}} \in \mathbb{R}^{d \times L_{\max}}$, indexed by position $n \in \{0,\dots,L-1\}$ rather than token | 02, 03 |
+| **Coordinate features** $C$ | A fixed matrix $C \in \mathbb{R}^{\|V\| \times 3}$ whose rows are $(x_{\text{norm}}, y_{\text{norm}}, \mathbf{1}_{\text{hold}})$ — one geometric vector per token ID | 02 |
+| **Coordinate normalisation** | Affine rescaling $x \mapsto 2(x - x_{\min})/(x_{\max} - x_{\min}) - 1$ mapping board coordinates into $[-1, 1]$ | 01, 02 |
+| **Coordinate projection** $W_{\text{coord}}$ | Learned linear map $W_{\text{coord}} \in \mathbb{R}^{d \times 3}$ that lifts physical coordinates into $\mathbb{R}^d$ | 02 |
+| **Token + position + coord** | Three vectors added componentwise in $\mathbb{R}^d$: $X_{n,:} = E e_{t_n} + E_{\text{pos}} e_n + W_{\text{coord}}\, C_{t_n}$ | 02 |
+| **Sequence matrix** $X$ | Stacked row embeddings: $X \in \mathbb{R}^{L \times d}$, one row per token | 02, 03 |
+
+### 3. The transformer encoder (grade predictor)
+
+| Term | Linear-algebra meaning | Notebooks |
+|------|------------------------|:---------:|
+| **Self-attention** | A learned bilinear form followed by a convex combination: $X \mapsto \mathrm{softmax}(QK^\top/\sqrt{d_h})\,V$ | 02 |
+| **Query / Key / Value** | Three learned linear images of $X$: $Q = X W_Q$, $K = X W_K$, $V = X W_V$ with $W_\bullet \in \mathbb{R}^{d \times d}$ | 02 |
+| **Multi-head attention** | Block-diagonal decomposition of $\mathbb{R}^d$ into 4 orthogonal 32-dim subspaces that attend independently | 02 |
+| **Gram matrix** $QK^\top$ | The $L \times L$ matrix of learned inner products — entry $(i,j)$ is the query-key affinity $\langle Q_i, K_j \rangle$ | 02 |
+| **$1/\sqrt{d_h}$ scaling** | Variance normalisation so the inner products have $O(1)$ variance as $d_h$ grows | 02 |
+| **Row-wise softmax** | Each row of $QK^\top/\sqrt{d_h}$ is mapped onto the probability simplex $\Delta^{L-1}$ | 02 |
+| **Convex combination** | $\mathrm{softmax}(\cdot)\,V$ — each output row is a learned weighted average of value rows | 02 |
+| **`key_padding_mask`** | Zeros out rows of the attention matrix that correspond to pad tokens | 02 |
+| **Pre-norm residual** | $X \leftarrow X + \mathrm{Sublayer}(\mathrm{LN}(X))$ — additive update in $\mathbb{R}^{L \times d}$ | 02 |
+| **LayerNorm** | Affine map subtracting the mean and dividing by the std of each row, then scaling/shifting — projection onto the unit sphere followed by a learned affine transform | 02 |
+| **Feed-forward block** | Two linear maps $\mathbb{R}^d \xrightarrow{W_1} \mathbb{R}^{4d} \xrightarrow{\text{GELU}} \mathbb{R}^{4d} \xrightarrow{W_2} \mathbb{R}^d$ | 02 |
+| **`<CLS>` pooling** | Selecting row $0$ of the encoder output as the route-level summary vector in $\mathbb{R}^d$ | 02 |
+| **Regression head** | A learned nonlinear functional $\mathbb{R}^d \xrightarrow{\text{Linear}} \mathbb{R}^d \xrightarrow{\text{GELU}} \mathbb{R}^d \xrightarrow{\text{Linear}} \mathbb{R}$ returning a difficulty scalar | 02 |
+
+### 4. The causal transformer (route generator)
+
+| Term | Linear-algebra meaning | Notebooks |
+|------|------------------------|:---------:|
+| **Causal mask** | Strictly upper-triangular boolean matrix $M \in \{0,1\}^{L \times L}$, $M_{ij} = \mathbf{1}_{j > i}$ — token $i$ cannot attend to token $j > i$ | 03 |
+| **Masked attention** | Attention restricted to the lower-triangular part of the Gram matrix | 03 |
+| **Teacher forcing** | Training pairs $(X, Y)$ with $Y$ equal to $X$ shifted one position right — the model learns the conditional $p(x_{n+1} \mid x_{1:n})$ | 03 |
+| **Logits** $\ell$ | A vector $\ell \in \mathbb{R}^{\|V\|}$ whose $i$-th entry is the inner product $\langle E_i, h \rangle$ between the current hidden state and the embedding of token $i$ | 03 |
+| **Weight tying** | `lm_head.weight = token_emb.weight`; the output projection reuses $E^\top$, so logit $i = \langle E_i, h \rangle$ — read and score in the same geometry | 03 |
+| **Cross-entropy loss** | $\mathcal{L} = -\log \dfrac{\exp(\langle E_y, h\rangle)}{\sum_j \exp(\langle E_j, h\rangle)}$ — negative log of the softmax-inner-product with the target basis vector | 03 |
+| **Perplexity** | $\exp(\mathcal{L}_{\text{CE}})$ — effective average number of tokens the model was choosing between at each step | 03 |
+| **Block size** | The context window $L_{\max}$ — maximum number of tokens the model can attend over | 03 |
+
+### 5. Sampling and decoding
+
+| Term | Linear-algebra meaning | Notebooks |
+|------|------------------------|:---------:|
+| **Logits vector** $\ell$ | An arbitrary vector in $\mathbb{R}^{\|V\|}$ about to be mapped to a probability distribution | 03, 04 |
+| **Temperature** $T$ | Divides $\ell$ by $T$; rescales the logit vector's spread. $T \to 0^+$ concentrates on the argmax basis vector; $T \to \infty$ flattens to the barycentre of the simplex | 03, 04 |
+| **Top-$k$ filter** | Masks every logit outside the top $k$ to $-\infty$, projecting the output distribution onto a $k$-element face of the simplex $\Delta^{\|V\|-1}$ | 03, 04 |
+| **`forbidden_ids`** | Sets specified logits to $-\infty$ — hard projection onto a face of the simplex that excludes those basis vectors | 03 |
+| **Softmax** | Map $\mathbb{R}^{\|V\|} \to \mathrm{int}(\Delta^{\|V\|-1})$, $\ell_i \mapsto \exp(\ell_i)/\sum_j \exp(\ell_j)$ | 03, 04 |
+| **Multinomial sample** | Draw one basis vector $e_i$ with probability $p_i$ | 03, 04 |
+| **Autoregressive loop** | Ancestral sampling: concatenate $e_i$ to the sequence, re-run the model, repeat until `<EOS>` | 03, 04 |
+
+### 6. Training and optimisation
+
+| Term | Linear-algebra meaning | Notebooks |
+|------|------------------------|:---------:|
+| **MSE loss** | Squared Euclidean distance $\|y - \hat y\|^2 / N$ — used for grade regression | 02 |
+| **AdamW** | Adaptive-gradient SGD using a diagonal preconditioner (running means of $\nabla^2$) with decoupled L2 pull toward $\mathbf{0}$ | 02, 03 |
+| **Weight decay** | Decoupled L2 regularisation that shrinks every parameter vector toward $\mathbf{0}$ each step | 02, 03 |
+| **Gradient clipping** | Rescale the gradient: $g \leftarrow \min(1, 1/\|g\|_2)\, g$ to cap its spectral norm at $1$ | 02, 03 |
+| **Learning rate** $\eta$ | Step size along $-\nabla \mathcal{L}$ in parameter space | 02, 03 |
+| **Batch** | A uniform sample of training rows; loss is the mean over the batch | 02, 03 |
+| **Early stopping** | Halt when the validation metric stops improving; restore the parameters with best validation score | 02, 03 |
+| **Train / val / test** | Three disjoint samples of rows used for fitting, hyperparameter selection, and final evaluation | 02, 03 |
+
+### 7. Evaluation metrics
+
+| Term | Linear-algebra meaning | Notebooks |
+|------|------------------------|:---------:|
+| **Jaccard similarity** | $\|A \cap B\| / \|A \cup B\| = \langle \mathbf{1}_A, \mathbf{1}_B\rangle \,/\, (\|\mathbf{1}_A\|_1 + \|\mathbf{1}_B\|_1 - \langle \mathbf{1}_A, \mathbf{1}_B\rangle)$ — a normalised inner product of indicator vectors on $\{0,1\}^N$ | 04 |
+| **Novelty distance** | $1 - \mathrm{Jaccard}(A, B)$ — a metric on the Boolean hypercube | 04 |
+| **Nearest real route** | Argmax of Jaccard over the training set — an exhaustive nearest-neighbour query under the Jaccard metric | 04 |
+| **MAE** | $\ell_1$ distance $\|y - \hat y\|_1 / N$ between prediction and target vectors | 04 |
+| **RMSE** | $\ell_2$ distance $\sqrt{\|y - \hat y\|_2^2 / N}$ | 04 |
+| **$R^2$** | Fraction of variance explained: $1 - \|y - \hat y\|^2 / \|y - \bar y\, \mathbf{1}\|^2$ | 04 |
+| **Within ±$k$ V-grades** | $\mathbf{1}[\|y - \hat y\|_1 \le k]$ after grade binning | 04 |
+| **Hand-reach distances** | `scipy.spatial.distance.pdist(holds[["x","y"]].values)` — pairwise Euclidean distances in $\mathbb{R}^2$ | 04 |
+| **Composite ranking score** | Learned linear combination of validity, novelty, and grade-consistency features used to rank generated routes | 04 |
+
+---
+
 ## Quantitative results
 
 These numbers are from the full training run documented by this repository. The notebooks in `notebooks/` are self-contained walkthroughs of the pipeline stages. The reported pipeline run was executed on Kaggle; notebooks 01-04 took about 8h 1m 59s total using GPU T4 x2.
@@ -130,31 +241,31 @@ In practice: the grade model is usually within one V-grade, and the generator us
 | Kilter | 223,112 | 27,555 | 27,822 |
 | **Total** | **256,831** | **31,985** | **32,269** |
 
-Shared vocabulary: **4,438 tokens** (6 special + 2 board + 12 angle + 16 grade + 4,402 hold-role tokens).
+Shared vocabulary: **$\|V\| = 4438$ tokens** (6 special + 2 board + 12 angle + 16 grade + 4,402 hold-role tokens).
 
 ### Grade prediction accuracy
 
-The model has ~1.17M parameters. Early stopping selected epoch 11 (validation MAE ≈ 1.488).
+The model has ~1.17M parameters (scalar entries across all parameter tensors). Early stopping selected epoch 11 (validation MAE $\approx 1.488$).
 
 | Metric | Overall | TB2 | Kilter |
 |---|---:|---:|---:|
-| Exact V-grade | 35.8% | 35.8% | 35.8% |
-| Within ±1 V-grade | 79.2% | 79.4% | 79.1% |
-| Within ±2 V-grades | 94.9% | 95.5% | 94.8% |
-| R² | 0.763 | 0.793 | 0.758 |
+| Exact V-grade [binned $\hat y$ equals binned $y$] | 35.8% | 35.8% | 35.8% |
+| Within ±1 V-grade [$\|y - \hat y\|_1 \le 1$ after binning] | 79.2% | 79.4% | 79.1% |
+| Within ±2 V-grades [$\|y - \hat y\|_1 \le 2$ after binning] | 94.9% | 95.5% | 94.8% |
+| $R^2$ [fraction of variance explained, $1 - \|y - \hat y\|^2 / \|y - \bar y\,\mathbf{1}\|^2$] | 0.763 | 0.793 | 0.758 |
 
 ### Route generation
 
-The generator has ~1.41M parameters. Best validation perplexity: 24.3.
+The generator has ~1.41M parameters. Best validation perplexity: 24.3 [$\exp(\mathcal{L}_{\text{CE}})$ — effective vocabulary size per step].
 
 | Metric | TB2 | Kilter |
 |---|---:|---:|
 | Routes evaluated | 200 | 200 |
-| Structurally valid | 91.5% | 86.0% |
-| Exact requested grade (critic) | 34.5% | 37.0% |
-| Within ±1 V-grade (critic) | 73.0% | 79.5% |
-| Within ±2 V-grades (critic) | 91.0% | 96.5% |
-| Mean novelty (Jaccard distance) | 0.656 | 0.643 |
+| Structurally valid [passes combinatorial checks on the placement set] | 91.5% | 86.0% |
+| Exact requested grade (critic) [predicted grade bin equals requested bin] | 34.5% | 37.0% |
+| Within ±1 V-grade (critic) [$\|\hat y_{\text{critic}} - y_{\text{requested}}\|_1 \le 1$] | 73.0% | 79.5% |
+| Within ±2 V-grades (critic) [$\|\hat y_{\text{critic}} - y_{\text{requested}}\|_1 \le 2$] | 91.0% | 96.5% |
+| Mean novelty (Jaccard distance) [$1 - \langle\mathbf{1}_A, \mathbf{1}_B\rangle / \|\mathbf{1}_A \cup \mathbf{1}_B\|_1$, averaged over routes] | 0.656 | 0.643 |
 
 ---
 
